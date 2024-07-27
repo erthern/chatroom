@@ -23,7 +23,8 @@
 #include <boost/asio.hpp>
 #include <ev.h>
 using boost::asio::ip::tcp;
-const int PORT = 12345;
+#define MAX_EVENTS 10
+#define PORT 12345
 const char* SERVER_IP = "127.0.0.1";
 int client_socket;
 struct sockaddr_in server_addr;
