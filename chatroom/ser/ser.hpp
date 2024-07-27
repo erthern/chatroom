@@ -1,0 +1,20 @@
+#include <sys/epoll.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <iostream>
+#include <cstring>
+#include <unordered_map>
+#include <vector> 
+#include <string>
+#include <thread>
+#include <arpa/inet.h>
+#include <cstdlib>
+#include <mutex>
+#include <atomic>
+#include <future>
+#include <condition_variable>
+#include <hiredis/hiredis.h>
+#include <nlohmann/json.hpp>
+#include <curl/curl.h>
+using json = nlohmann::json;
