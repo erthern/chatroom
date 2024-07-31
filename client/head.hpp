@@ -22,6 +22,11 @@
 #include <sstream>
 #include <boost/asio.hpp>
 #include <ev.h>
+#define online 1//在线
+#define offline 0//离线
+#define signup 1//注册
+#define login 2//登录
+#define logout 3//登出
 using boost::asio::ip::tcp;
 const int PORT = 12345;
 const char* SERVER_IP = "127.0.0.1";
@@ -98,6 +103,7 @@ class user {
                 std::getline(std::cin,this->que);
                 std::cout << "Enter your safety quetion's answer:" << std::endl;
                 std::getline(std::cin,this->ans);
+                this->status=0;
                 juser=this->toJson();
         }
         void senduser(){
