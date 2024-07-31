@@ -22,11 +22,11 @@
 #include <sstream>
 #include <boost/asio.hpp>
 #include <ev.h>
-#define online 1//在线
-#define offline 0//离线
-#define signup 1//注册
-#define login 2//登录
-#define logout 3//登出
+#define ONLINE 1//在线
+#define OFFLINE 0//离线
+#define SIGHUP 1//注册
+#define LOGIN 2//登录
+#define LOGOUT 3//登出
 using boost::asio::ip::tcp;
 const int PORT = 12345;
 const char* SERVER_IP = "127.0.0.1";
