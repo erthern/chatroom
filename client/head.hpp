@@ -75,11 +75,13 @@ class user {
                 std::cout << "        （选择数字执行对应操作）" << std::endl;
                 std::cout << "********************************" << std::endl;
             int i;
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
             std::cin >> i;
             if(i == 4) break;
             else if(i == 2) {
                 system("clear");
                 std::cout << "请输入用户名：" << std::endl;
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
                 std::getline(std::cin,this->username);
                 std::cout << "请输入密码：" << std::endl;
                 std::getline(std::cin,this->password);
@@ -89,7 +91,7 @@ class user {
             else if(i == 1) {
                 signup();
                 senduser();
-                receive_messages();
+                receiveuser();
                 }
             }
         }
@@ -103,7 +105,7 @@ class user {
                 std::getline(std::cin,this->que);
                 std::cout << "Enter your safety quetion's answer:" << std::endl;
                 std::getline(std::cin,this->ans);
-                this->status=0;
+                this->status="offline";
                 juser=this->toJson();
         }
         void senduser(){
