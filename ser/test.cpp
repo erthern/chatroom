@@ -119,7 +119,13 @@ int main() {
         perror("socket failed");
         exit(EXIT_FAILURE);
     }
-
+     // 设置套接字选项以允许地址重用
+    int opt = 1;
+    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+        std::cerr << "setsockopt failed" << std::endl;
+        close(server_socket);
+        exit(EXIT_FAILURE);
+    }
     // 绑定 socket
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
@@ -156,54 +162,53 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    redisContext* redis_context = redisConnect("127.0.0.1", 6379);
+    if (redis_context == nullptr || redis_context->err) {
+        if (redis_context) {
+            std::cerr << "Error: " << redis_context->errstr << std::endl;
+            redisFree(redis_context);
+        } else {
+            std::cerr << "Can't allocate redis context" << std::endl;
+        }
+        exit(EXIT_FAILURE);
+    }
+
+    std::cout << "Server listening on port " << PORT << std::endl;
+
     while (true) {
-        int nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-        if (nfds == -1) {
-            perror("epoll_wait");
-            close(server_fd);
+        event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+        if (event_count == -1) {
+            std::cerr << "epoll_wait failed" << std::endl;
+            close(server_socket);
             close(epoll_fd);
+            redisFree(redis_context);
             exit(EXIT_FAILURE);
         }
 
-        for (int i = 0; i < nfds; ++i) {
-            if (events[i].data.fd == server_fd) {
-                // 接受新连接
-                new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
-                if (new_socket == -1) {
-                    perror("accept");
-                } else {
-                    // 获取客户端地址信息
-                    char client_address[INET_ADDRSTRLEN];
-                    inet_ntop(AF_INET, &(address.sin_addr), client_address, INET_ADDRSTRLEN);
-                    
-                    // 保存客户端信息
-                    ClientInfo client_info = {new_socket, client_address};
-                    clients[new_socket] = client_info;
-                    
-                    ev.events = EPOLLIN;
-                    ev.data.fd = new_socket;
-                    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_socket, &ev) == -1) {
-                        perror("epoll_ctl: new_socket");
-                        close(new_socket);
-                    }
-                    
-                    std::cout << "New connection from " << client_address << " (fd=" << new_socket << ")" << std::endl;
+        for (int i = 0; i < event_count; i++) {
+            if (events[i].data.fd == server_socket) {
+                client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len);
+                if (client_socket == -1) {
+                    std::cerr << "Accept failed" << std::endl;
+                    continue;
                 }
+
+                event.events = EPOLLIN | EPOLLET;
+                event.data.fd = client_socket;
+                if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_socket, &event) == -1) {
+                    std::cerr << "epoll_ctl failed" << std::endl;
+                    close(client_socket);
+                }
+
+                std::cout << "New connection accepted" << std::endl;
             } else {
-                // 处理客户端请求
-                int client_fd = events[i].data.fd;
-                handle_client(client_fd);
-                
-                // 如果客户端已关闭连接，从 epoll 和 clients 中移除
-                if (events[i].events & (EPOLLHUP | EPOLLERR)) {
-                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
-                    clients.erase(client_fd);
-                }
+                handle_client(events[i].data.fd, redis_context);
             }
         }
     }
 
-    close(server_fd);
+    close(server_socket);
     close(epoll_fd);
+    redisFree(redis_context);
     return 0;
 }
