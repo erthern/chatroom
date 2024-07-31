@@ -69,12 +69,7 @@
 //     close(server_socket);
 //     return 0;
 // }
-#include <sys/epoll.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <cstring>
-#include <iostream>
-#include <unordered_map>
+#include "../ser/ser.hpp"
 
 #define MAX_EVENTS 10
 #define PORT 12345
@@ -107,61 +102,63 @@ void handle_client(int client_fd) {
 }
 
 int main() {
-    int server_fd, new_socket, epoll_fd;
-    struct sockaddr_in address;
-    struct epoll_event ev, events[MAX_EVENTS];
-    int addrlen = sizeof(address);
-    std::unordered_map<int, ClientInfo> clients;  // 保存客户端信息
+    int server_socket, client_socket, epoll_fd, event_count;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    struct epoll_event event, events[MAX_EVENTS];
 
-    // 创建服务器 socket
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == 0) {
-        perror("socket failed");
+    // 创建服务器端套接字
+    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket == 0) {
+        std::cerr << "Socket failed" << std::endl;
         exit(EXIT_FAILURE);
     }
-     // 设置套接字选项以允许地址重用
+
+    // 设置套接字选项以允许地址重用
     int opt = 1;
     if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
         std::cerr << "setsockopt failed" << std::endl;
         close(server_socket);
         exit(EXIT_FAILURE);
     }
-    // 绑定 socket
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        perror("bind failed");
-        close(server_fd);
+    // 绑定套接字
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(PORT);
+
+    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        std::cerr << "Bind failed" << std::endl;
+        close(server_socket);
         exit(EXIT_FAILURE);
     }
 
-    // 监听 socket
-    if (listen(server_fd, 3) < 0) {
-        perror("listen");
-        close(server_fd);
+    // 监听连接请求
+    if (listen(server_socket, 3) < 0) {
+        std::cerr << "Listen failed" << std::endl;
+        close(server_socket);
         exit(EXIT_FAILURE);
     }
 
     // 创建 epoll 实例
     epoll_fd = epoll_create1(0);
     if (epoll_fd == -1) {
-        perror("epoll_create1");
-        close(server_fd);
+        std::cerr << "epoll_create1 failed" << std::endl;
+        close(server_socket);
         exit(EXIT_FAILURE);
     }
 
-    // 将服务器 socket 添加到 epoll 事件列表中？？
-    ev.events = EPOLLIN;
-    ev.data.fd = server_fd;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
-        perror("epoll_ctl: server_fd");
-        close(server_fd);
+    // 将服务器套接字添加到 epoll 实例中
+    event.events = EPOLLIN;
+    event.data.fd = server_socket;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &event) == -1) {
+        std::cerr << "epoll_ctl failed" << std::endl;
+        close(server_socket);
         close(epoll_fd);
         exit(EXIT_FAILURE);
     }
 
+    // 连接到 Redis 服务器
     redisContext* redis_context = redisConnect("127.0.0.1", 6379);
     if (redis_context == nullptr || redis_context->err) {
         if (redis_context) {

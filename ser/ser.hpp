@@ -61,66 +61,7 @@ class user {
                 {"signal", signal}
             };
     }
-        // void menu(){
-        //     while(1){
-        //         system("clear");
-        //         std::cout << "********************************" << std::endl;
-        //         std::cout << "           MY CHATROOM" << std::endl;
-        //         std::cout << "              1.注册" << std::endl;
-        //         std::cout << "              2.登录" << std::endl;
-        //         std::cout << "              3.注销" << std::endl;
-        //         std::cout << "              4.退出" << std::endl;
-        //         std::cout << "        （选择数字执行对应操作）" << std::endl;
-        //         std::cout << "********************************" << std::endl;
-        //     int i;
-        //     std::cin >> i;
-        //     if(i == 4) break;
-        //     else if(i == 2) {
-        //         system("clear");
-        //         std::cout << "请输入用户名：" << std::endl;
-        //         std::getline(std::cin,this->username);
-        //         std::cout << "请输入密码：" << std::endl;
-        //         std::getline(std::cin,this->password);
-        //         login(this->username,this->password);
-        //         sendusername();
-        //         }
-        //     else if(i == 1) {
-        //         signup();
-        //         senduser();
-        //         }
-        //     }
-        // }
-        // int connecttoserver(){//检测返回值判断是否退出main函数
-
-        //     client_socket = socket(AF_INET, SOCK_STREAM, 0);
-        //     if (client_socket < 0) {
-        //         std::cerr << "Socket creation failed!" << std::endl;
-        //         return -1;
-        //     }
-
-        //     server_addr.sin_family = AF_INET;//设置ipv4
-        //     server_addr.sin_port = htons(PORT);
-        //     inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr);
-
-        //     if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        //         std::cerr << "Connection to the server failed!" << std::endl;
-        //         return -1;
-        //     }
-
-        //     std::cout << "Connected to the server." << std::endl;
-        //     return 0;
-        // }
-        // void signup(){
-        //         system("clear");
-        //         std::cout << "Enter your username:" << std::endl;
-        //         std::getline(std::cin,this->username);
-        //         this->password = getHiddenPassword();
-        //         std::cout << "Enter your safety quetion:" << std::endl;
-        //         std::getline(std::cin,this->que);
-        //         std::cout << "Enter your safety quetion's answer:" << std::endl;
-        //         std::getline(std::cin,this->ans);
-        //         juser=this->toJson();
-        // }
+        
         // void senduser(){
         //     std::string str = juser.dump();
         //     send(client_socket,str.c_str(),str.length(),0);
@@ -170,21 +111,32 @@ void handle_client(int client_socket, redisContext* redis_context) {
         json received_json = json::parse(data);
         std::cout << "Parsed JSON: " << received_json.dump(4) << std::endl;
 
-        // Store JSON in Redis
-        std::string key = "chat_message";
-        std::string value = received_json.dump();
-        redisReply* reply = (redisReply*)redisCommand(redis_context, "SET %s %s", key.c_str(), value.c_str());
-        if (reply == nullptr) {
-            std::cerr << "Redis command failed" << std::endl;
-        } else {
-            std::cout << "Stored in Redis: " << reply->str << std::endl;
-            freeReplyObject(reply);
-        }
-
-        // Example: Accessing JSON fields
-        if (received_json.contains("message")) {
-            std::string message = received_json["message"];
-            std::cout << "Message: " << message << std::endl;
+        if (received_json.contains("username")) {
+            std::string username = received_json["username"];
+            redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
+            
+            if (reply == nullptr) {
+                std::cerr << "Redis command failed" << std::endl;
+            } else {
+                if (reply->integer == 1) {
+                    std::cout << "User " << username << " is already registered." << std::endl;
+                    std::string message;
+                    message += "User";
+                    message += username;
+                    message += " already registered";
+                    send(client_socket, message.c_str(),message.size(),0);
+                } else {
+                    // 未注册用户，存储信息
+                    std::string password = received_json["password"];
+                    std::string status = received_json["status"];
+                    std::string que = received_json["question"];
+                    std::string ans = received_json["answer"];
+                    redisCommand(redis_context, "HSET user:%s username %s password %s status %s question %s answer %s", 
+                                 username.c_str(), username.c_str(), password.c_str(), status.c_str(), que.c_str(), ans.c_str());
+                    std::cout << "User " << username << " registered successfully." << std::endl;
+                }
+                freeReplyObject(reply);
+            }
         }
     } catch (json::parse_error& e) {
         std::cerr << "JSON parse error: " << e.what() << std::endl;

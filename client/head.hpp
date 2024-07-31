@@ -61,7 +61,6 @@ class user {
     }
         void menu(){
             while(1){
-                system("clear");
                 std::cout << "********************************" << std::endl;
                 std::cout << "           MY CHATROOM" << std::endl;
                 std::cout << "              1.注册" << std::endl;
@@ -85,12 +84,14 @@ class user {
             else if(i == 1) {
                 signup();
                 senduser();
+                receive_messages();
                 }
             }
         }
         void signup(){
                 system("clear");
                 std::cout << "Enter your username:" << std::endl;
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
                 std::getline(std::cin,this->username);
                 this->password = getHiddenPassword();
                 std::cout << "Enter your safety quetion:" << std::endl;
@@ -102,6 +103,18 @@ class user {
         void senduser(){
             std::string str = juser.dump();
             send(client_socket,str.c_str(),str.length(),0);
+        }
+        void receiveuser(){
+            // 接收服务器发送的数据
+            char buffer[1024]={0};
+            ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+            if (bytes_received < 0) {
+                std::cerr << "Receive failed" << std::endl;
+            } 
+            else {
+                buffer[bytes_received] = '\0'; // 确保缓冲区以null字符结尾
+                std::cout << "Message from server: " << buffer << std::endl;
+            }
         }
         void login(std::string username, std::string password){
             ;

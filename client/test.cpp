@@ -19,7 +19,7 @@ void logout(){}
 int main(int argc, char **argv) {
     user new_user;
     int i = connecttoserver();
-    if(i == -1) return -1;
+    if(i == -1) {close(client_socket);return -1;}
     std::string message;
     new_user.menu();
     // sendMessage(message,client_socket);
