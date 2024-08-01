@@ -79,13 +79,7 @@ class user {
             std::cin >> i;
             if(i == 4) break;
             else if(i == 2) {
-                system("clear");
-                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
-                std::cout << "请输入用户名：" << std::endl;
-                std::getline(std::cin,this->username);
-                std::cout << "请输入密码：" << std::endl;
-                std::getline(std::cin,this->password);
-                login(this->username,this->password);
+                login();
                 senduser();
                 }
             else if(i == 1) {
@@ -108,6 +102,7 @@ class user {
                 this->status="offline";
                 this->signal=SIGHUP;
                 juser=this->toJson();
+                return;
         }
         void senduser(){
             std::string str = juser.dump();
@@ -126,8 +121,16 @@ class user {
                 std::cout << "Message from server: " << buffer << std::endl;
             }
         }
-        void login(std::string username, std::string password){
-            ;
+        void login(){
+                system("clear");
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
+                std::cout << "请输入用户名：" << std::endl;
+                std::getline(std::cin,this->username);
+                std::cout << "请输入密码：" << std::endl;
+                std::getline(std::cin,this->password);
+                this->signal=SIGHUP;
+                juser=this->toJson();
+                return;
         }
         std::string getHiddenPassword() {
             struct termios old, current;
@@ -174,4 +177,4 @@ int connecttoserver(){//检测返回值判断是否退出main函数
 
             std::cout << "Connected to the server." << std::endl;
             return 0;
-        }
+}

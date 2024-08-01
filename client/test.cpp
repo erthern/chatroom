@@ -10,11 +10,6 @@ void sendMessage(std::string message,int client_socket){}
 
 void sendSignal(){}
 
-void login(){}
-
-void signup(){}
-
-void logout(){}
 
 int main(int argc, char **argv) {
     user new_user;

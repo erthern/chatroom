@@ -102,6 +102,12 @@ void handle_client(int client_socket, redisContext* redis_context) {
                     redisCommand(redis_context, "HSET user:%s username %s password %s status %s question %s answer %s", 
                                  username.c_str(), username.c_str(), password.c_str(), status.c_str(), que.c_str(), ans.c_str());
                     std::cout << "User " << username << " registered successfully." << std::endl;
+                    std::string message;
+                    message += "User ";
+                    message += username;
+                    message += " is already registered successfully.";
+                    ssize_t i = write(client_socket, message.c_str(), message.size());
+                    if(i <= 0) std::cout << "write error" << std::endl;
                 }
                 freeReplyObject(reply);
             }
