@@ -29,6 +29,7 @@
 #define LOGOUT 3//登出
 using boost::asio::ip::tcp;
 const int PORT = 12345;
+const int BUFFER_SIZE = 4096;
 const char* SERVER_IP = "127.0.0.1";
 int client_socket;
 struct sockaddr_in server_addr;
@@ -75,13 +76,12 @@ class user {
                 std::cout << "        （选择数字执行对应操作）" << std::endl;
                 std::cout << "********************************" << std::endl;
             int i;
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
             std::cin >> i;
             if(i == 4) break;
             else if(i == 2) {
                 system("clear");
-                std::cout << "请输入用户名：" << std::endl;
                 std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
+                std::cout << "请输入用户名：" << std::endl;
                 std::getline(std::cin,this->username);
                 std::cout << "请输入密码：" << std::endl;
                 std::getline(std::cin,this->password);
@@ -106,11 +106,13 @@ class user {
                 std::cout << "Enter your safety quetion's answer:" << std::endl;
                 std::getline(std::cin,this->ans);
                 this->status="offline";
+                this->signal=SIGHUP;
                 juser=this->toJson();
         }
         void senduser(){
             std::string str = juser.dump();
             send(client_socket,str.c_str(),str.length(),0);
+            std::cout << "send successfully" << std::endl;
         }
         void receiveuser(){
             // 接收服务器发送的数据

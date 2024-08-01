@@ -25,7 +25,7 @@
 using boost::asio::ip::tcp;
 #define MAX_EVENTS 10
 #define PORT 12345
-const int BUFFER_SIZE = 1024;
+const int BUFFER_SIZE = 4096;
 const char* SERVER_IP = "127.0.0.1";
 int client_socket;
 struct sockaddr_in server_addr;
@@ -61,39 +61,6 @@ class user {
                 {"signal", signal}
             };
     }
-        
-        // void senduser(){
-        //     std::string str = juser.dump();
-        //     send(client_socket,str.c_str(),str.length(),0);
-        // }
-        // void login(std::string username, std::string password){
-        //     ;
-        // }
-        // std::string getHiddenPassword() {
-        //     struct termios old, current;
-        //     char c;
-
-        //     // 获取当前终端设置
-        //     tcgetattr(fileno(stdin), &old);
-
-        //     // 修改终端设置,关闭回显
-        //     current = old;
-        //     current.c_lflag &= ~ECHO;
-        //     tcsetattr(fileno(stdin), TCSANOW, &current);
-
-        //     // 读取密码输入
-        //     std::cout << "Enter password: ";
-        //     // while ((c = std::getchar()) != '\n') {
-        //     //     password += c;
-        //     // }
-        //     std::getline(std::cin, password);
-        //     std::cout << std::endl;
-
-        //     // 还原终端设置
-        //     tcsetattr(fileno(stdin), TCSANOW, &old);
-
-        //     return password;
-        // }
 };
 void handle_client(int client_socket, redisContext* redis_context) {
     char buffer[BUFFER_SIZE] = {0};
@@ -121,10 +88,11 @@ void handle_client(int client_socket, redisContext* redis_context) {
                 if (reply->integer == 1) {
                     std::cout << "User " << username << " is already registered." << std::endl;
                     std::string message;
-                    message += "User";
+                    message += "User ";
                     message += username;
                     message += " already registered";
-                    send(client_socket, message.c_str(),message.size(),0);
+                    ssize_t i = write(client_socket, message.c_str(), message.size());
+                    if(i <= 0) std::cout << "write error" << std::endl;
                 } else {
                     // 未注册用户，存储信息
                     std::string password = received_json["password"];
@@ -141,6 +109,4 @@ void handle_client(int client_socket, redisContext* redis_context) {
     } catch (json::parse_error& e) {
         std::cerr << "JSON parse error: " << e.what() << std::endl;
     }
-
-    close(client_socket);
 }

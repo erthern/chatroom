@@ -80,26 +80,26 @@ struct ClientInfo {
     std::string address;
 };
 
-void handle_client(int client_fd) {
-    char buffer[1024];
-    memset(buffer, 0, sizeof(buffer));
-    ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
-    if (bytes_read > 0) {
-        std::cout << "Received from client (fd=" << client_fd << "): " << buffer << std::endl;
-        // 回应客户端
-        std::string s="   fd= ";
-        std::string str = std::to_string(client_fd);
-        s+=str;
-        std::strcat(buffer,s.c_str());
-        write(client_fd, buffer, bytes_read+18);
-    } else if (bytes_read == 0) {
-        // 客户端关闭连接
-        close(client_fd);
-        std::cout << "Client (fd=" << client_fd << ") disconnected." << std::endl;
-    } else {
-        perror("read");
-    }
-}
+// void handle_client(int client_fd) {
+//     char buffer[1024];
+//     memset(buffer, 0, sizeof(buffer));
+//     ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
+//     if (bytes_read > 0) {
+//         std::cout << "Received from client (fd=" << client_fd << "): " << buffer << std::endl;
+//         // 回应客户端
+//         std::string s="   fd= ";
+//         std::string str = std::to_string(client_fd);
+//         s+=str;
+//         std::strcat(buffer,s.c_str());
+//         write(client_fd, buffer, bytes_read+18);
+//     } else if (bytes_read == 0) {
+//         // 客户端关闭连接
+//         close(client_fd);
+//         std::cout << "Client (fd=" << client_fd << ") disconnected." << std::endl;
+//     } else {
+//         perror("read");
+//     }
+// }
 
 int main() {
     int server_socket, client_socket, epoll_fd, event_count;
@@ -134,7 +134,7 @@ int main() {
     }
 
     // 监听连接请求
-    if (listen(server_socket, 3) < 0) {
+    if (listen(server_socket, 256) < 0) {
         std::cerr << "Listen failed" << std::endl;
         close(server_socket);
         exit(EXIT_FAILURE);
@@ -149,7 +149,7 @@ int main() {
     }
 
     // 将服务器套接字添加到 epoll 实例中
-    event.events = EPOLLIN;
+    event.events = EPOLLIN | EPOLLET;
     event.data.fd = server_socket;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &event) == -1) {
         std::cerr << "epoll_ctl failed" << std::endl;
@@ -199,7 +199,10 @@ int main() {
 
                 std::cout << "New connection accepted" << std::endl;
             } else {
-                handle_client(events[i].data.fd, redis_context);
+                // handle_client(events[i].data.fd, redis_context);
+                std::thread([events, i, redis_context]() {
+                    handle_client(events[i].data.fd, redis_context);
+                }).detach();
             }
         }
     }
