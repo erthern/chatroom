@@ -27,6 +27,8 @@
 #define SIGHUP 1//注册
 #define LOGIN 2//登录
 #define LOGOUT 3//登出
+#define chatperson 4//私聊
+#define chatgroup 5//群聊
 using boost::asio::ip::tcp;
 const int PORT = 12345;
 const int BUFFER_SIZE = 4096;
@@ -81,7 +83,7 @@ class user {
             else if(i == 2) {
                 login();
                 senduser();
-                receiveuser();
+                receiveuser();//增加
                 }
             else if(i == 1) {
                 signup();
@@ -133,7 +135,7 @@ class user {
                 std::cout << "请输入用户名：" << std::endl;
                 std::getline(std::cin,this->username);
                 std::cout << "请输入密码：" << std::endl;
-                std::getline(std::cin,this->password);
+                this->password = getHiddenPassword();
                 this->signal=LOGIN;
                 juser=this->toJson();
                 return;
@@ -144,7 +146,7 @@ class user {
                 std::cout << "请输入用户名：" << std::endl;
                 std::getline(std::cin,this->username);
                 std::cout << "请输入密码：" << std::endl;
-                std::getline(std::cin,this->password);
+                this->password = getHiddenPassword();
                 this->signal=LOGOUT;
                 juser=this->toJson();
         }
