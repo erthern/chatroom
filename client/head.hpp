@@ -88,6 +88,11 @@ class user {
                 senduser();
                 receiveuser();
                 }
+            else if(i == 3){
+                logout();
+                senduser();
+                receiveuser();
+            }
             }
         }
         void signup(){
@@ -132,6 +137,16 @@ class user {
                 this->signal=LOGIN;
                 juser=this->toJson();
                 return;
+        }
+        void logout(){
+                system("clear");
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
+                std::cout << "请输入用户名：" << std::endl;
+                std::getline(std::cin,this->username);
+                std::cout << "请输入密码：" << std::endl;
+                std::getline(std::cin,this->password);
+                this->signal=LOGOUT;
+                juser=this->toJson();
         }
         std::string getHiddenPassword() {
             struct termios old, current;

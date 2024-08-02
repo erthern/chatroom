@@ -149,7 +149,7 @@ int main() {
     }
 
     // 将服务器套接字添加到 epoll 实例中
-    event.events = EPOLLIN | EPOLLET;
+    event.events = EPOLLIN;
     event.data.fd = server_socket;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &event) == -1) {
         std::cerr << "epoll_ctl failed" << std::endl;
