@@ -81,6 +81,7 @@ class user {
             else if(i == 2) {
                 login();
                 senduser();
+                receiveuser();
                 }
             else if(i == 1) {
                 signup();
@@ -128,7 +129,7 @@ class user {
                 std::getline(std::cin,this->username);
                 std::cout << "请输入密码：" << std::endl;
                 std::getline(std::cin,this->password);
-                this->signal=SIGHUP;
+                this->signal=LOGIN;
                 juser=this->toJson();
                 return;
         }
