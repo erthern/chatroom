@@ -16,6 +16,8 @@
 #include <future>
 #include <condition_variable>
 #include <hiredis/hiredis.h>
+#include <semaphore.h>
+#include <chrono>
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
 #include <fcntl.h>
@@ -28,6 +30,18 @@ using boost::asio::ip::tcp;
 #define SIGNUP 1//注册
 #define LOGIN 2//登录
 #define LOGOUT 3//登出
+#define FRIEND 4//查看好友
+#define BACK 5//回到上一级
+#define NLAHEI 6//不拉黑
+#define LAHEI 7//拉黑
+#define GROUP 8//查看群聊
+#define ADDFRIEND 9//添加好友
+#define DELFRIEND 10//删除好友
+#define Blacklist 11//拉入黑名单
+#define HISRORY 12//查看历史记录
+#define ADDGROUP 13//添加群聊
+#define DELGROUP 14//删除群聊
+#define QTGROUP 15//退出群聊
 const int BUFFER_SIZE = 4096;
 const char* SERVER_IP = "127.0.0.1";
 int client_socket;
