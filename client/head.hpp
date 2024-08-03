@@ -41,6 +41,7 @@
 #define ADDGROUP 13//添加群聊
 #define DELGROUP 14//删除群聊
 #define QTGROUP 15//退出群聊
+#define CHAT 16//聊天！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
 using boost::asio::ip::tcp;
 const int PORT = 12345;
 const int BUFFER_SIZE = 4096;
