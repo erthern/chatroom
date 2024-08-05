@@ -49,6 +49,7 @@ const char* SERVER_IP = "127.0.0.1";
 int client_socket;
 struct sockaddr_in server_addr;
 using json = nlohmann::json;
+std::mutex mtx;//设置为线程间通信信号
 //redis 执行命令为 redisCommand(redisContext *c, const char *format, ...)
 //第一个参数代表redisContext结构体指针，第二个参数代表命令
 class user {

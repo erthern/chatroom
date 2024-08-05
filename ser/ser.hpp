@@ -42,6 +42,9 @@ using boost::asio::ip::tcp;
 #define ADDGROUP 13//添加群聊
 #define DELGROUP 14//删除群聊
 #define QTGROUP 15//退出群聊
+#define CHAT 16//聊天
+#define PRIVATECHAT 17//进入私聊
+#define GROUPCHAT 18//进入群聊
 const int BUFFER_SIZE = 4096;
 const char* SERVER_IP = "127.0.0.1";
 int client_socket;
@@ -62,7 +65,7 @@ class user {
             {"username",this->username},
             {"password",this->password},
             {"status",this->status},
-            {"question",this->que},
+            {"question",this->que},;
             {"answer",this->ans},
             {"message",this->message},
             {"signal",this->signal},
@@ -79,7 +82,73 @@ class user {
             };
     }
 };
-void handle_client(int client_socket, redisContext* redis_context) {
+class server {
+    public:
+    int server_socket, client_socket, epoll_fd, event_count;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    struct epoll_event event, events[MAX_EVENTS];
+
+    void setsocket(){
+        // 创建服务器端套接字
+        server_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_socket == 0) {
+            std::cerr << "Socket failed" << std::endl;
+            exit(EXIT_FAILURE);
+    }
+
+        // 设置套接字选项以允许地址重用
+        int opt = 1;
+        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+            std::cerr << "setsockopt failed" << std::endl;
+            close(server_socket);
+            exit(EXIT_FAILURE);
+        }
+    }
+    
+    void bindtosocket(){
+        // 绑定套接字
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = INADDR_ANY;
+        server_addr.sin_port = htons(PORT);
+
+        if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+            std::cerr << "Bind failed" << std::endl;
+            close(server_socket);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    void listentosocket(){
+        // 监听连接请求
+        if (listen(server_socket, 256) < 0) {
+            std::cerr << "Listen failed" << std::endl;
+            close(server_socket);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    void sockettoepoll(){
+        // 创建 epoll 实例
+        epoll_fd = epoll_create1(0);
+        if (epoll_fd == -1) {
+            std::cerr << "epoll_create1 failed" << std::endl;
+            close(server_socket);
+            exit(EXIT_FAILURE);
+        }
+
+        // 将服务器套接字添加到 epoll 实例中
+        event.events = EPOLLIN;
+        event.data.fd = server_socket;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &event) == -1) {
+            std::cerr << "epoll_ctl failed" << std::endl;
+            close(server_socket);
+            close(epoll_fd);
+            exit(EXIT_FAILURE);
+        }
+        std::cout << "Server listening on port " << PORT << std::endl;
+    }
+    void handle_client(int client_socket, redisContext* redis_context) {
     char buffer[BUFFER_SIZE] = {0};
     int bytes_received = read(client_socket, buffer, BUFFER_SIZE);
     
@@ -228,3 +297,5 @@ void handle_client(int client_socket, redisContext* redis_context) {
             std::cerr << "JSON parse error: " << e.what() << std::endl;
         }
 }
+};
+

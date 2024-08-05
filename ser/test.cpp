@@ -102,61 +102,12 @@ struct ClientInfo {
 // }
 
 int main() {
-    int server_socket, client_socket, epoll_fd, event_count;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
-    struct epoll_event event, events[MAX_EVENTS];
-
+    server ser;
     // 创建服务器端套接字
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket == 0) {
-        std::cerr << "Socket failed" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    // 设置套接字选项以允许地址重用
-    int opt = 1;
-    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-        std::cerr << "setsockopt failed" << std::endl;
-        close(server_socket);
-        exit(EXIT_FAILURE);
-    }
-
-    // 绑定套接字
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(PORT);
-
-    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        std::cerr << "Bind failed" << std::endl;
-        close(server_socket);
-        exit(EXIT_FAILURE);
-    }
-
-    // 监听连接请求
-    if (listen(server_socket, 256) < 0) {
-        std::cerr << "Listen failed" << std::endl;
-        close(server_socket);
-        exit(EXIT_FAILURE);
-    }
-
-    // 创建 epoll 实例
-    epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1) {
-        std::cerr << "epoll_create1 failed" << std::endl;
-        close(server_socket);
-        exit(EXIT_FAILURE);
-    }
-
-    // 将服务器套接字添加到 epoll 实例中
-    event.events = EPOLLIN;
-    event.data.fd = server_socket;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &event) == -1) {
-        std::cerr << "epoll_ctl failed" << std::endl;
-        close(server_socket);
-        close(epoll_fd);
-        exit(EXIT_FAILURE);
-    }
+    ser.setsocket();
+    ser.bindtosocket();
+    ser.listentosocket();
+    ser.sockettoepoll();
 
     // 连接到 Redis 服务器
     redisContext* redis_context = redisConnect("127.0.0.1", 6379);
@@ -169,8 +120,6 @@ int main() {
         }
         exit(EXIT_FAILURE);
     }
-
-    std::cout << "Server listening on port " << PORT << std::endl;
 
     while (true) {
         event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -207,8 +156,8 @@ int main() {
         }
     }
 
-    close(server_socket);
-    close(epoll_fd);
+    close(ser.server_socket);
+    close(ser.epoll_fd);
     redisFree(redis_context);
     return 0;
 }
