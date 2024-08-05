@@ -61,7 +61,6 @@ class user {
         std::string que;//密保问题
         std::string ans;//密保问题答案
         std::string message;//消息user client;
-    client.menu();
         int signal;//功能信号
         json juser{
             {"username",this->username},
@@ -239,7 +238,7 @@ class user {
             std::cout << "4.返回上一级" << std::endl;
             return 8;
         }
-        int menu9(){}//聊天界面
+        int menu9(){return 9;}//聊天界面
         int menu10(){
             std::cout << "请输入您要删除的好友名或id" << std::endl;
             return 10;
