@@ -40,7 +40,9 @@
 #define ADDGROUP 13//添加群聊
 #define DELGROUP 14//删除群聊
 #define QTGROUP 15//退出群聊
-#define CHAT 16//聊天！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
+#define CHAT 16//聊天
+#define PRIVATECHAT 17//进入私聊
+#define GROUPCHAT 18//进入群聊
 using boost::asio::ip::tcp;
 const int PORT = 12345;
 const int BUFFER_SIZE = 4096;
@@ -48,7 +50,7 @@ const char* SERVER_IP = "127.0.0.1";
 int client_socket;
 struct sockaddr_in server_addr;
 using json = nlohmann::json;
-std::mutex mtx;//设置为线程间通信信号
+std::mutex mtxsignal;//设置为线程间通信信号
 //redis 执行命令为 redisCommand(redisContext *c, const char *format, ...)
 //第一个参数代表redisContext结构体指针，第二个参数代表命令
 class user {
@@ -58,7 +60,8 @@ class user {
         std::string status;//在线与否
         std::string que;//密保问题
         std::string ans;//密保问题答案
-        std::string message;//消息
+        std::string message;//消息user client;
+    client.menu();
         int signal;//功能信号
         json juser{
             {"username",this->username},
@@ -82,14 +85,7 @@ class user {
     }
         void menu(){
             while(1){
-                std::cout << "********************************" << std::endl;
-                std::cout << "           MY CHATROOM" << std::endl;
-                std::cout << "              1.注册" << std::endl;
-                std::cout << "              2.登录" << std::endl;
-                std::cout << "              3.注销" << std::endl;
-                std::cout << "              4.退出" << std::endl;
-                std::cout << "        （选择数字执行对应操作）" << std::endl;
-                std::cout << "********************************" << std::endl;
+            menu1();
             int i;
             std::cin >> i;
             if(i == 4) break;
@@ -187,6 +183,70 @@ class user {
             tcsetattr(fileno(stdin), TCSANOW, &old);
 
             return password;
+        }
+        int menu1(){
+            std::cout << "********************************" << std::endl;
+            std::cout << "           MY CHATROOM" << std::endl;
+            std::cout << "              1.注册" << std::endl;
+            std::cout << "              2.登录" << std::endl;
+            std::cout << "              3.注销" << std::endl;
+            std::cout << "              4.退出" << std::endl;
+            std::cout << "        （选择数字执行对应操作）" << std::endl;
+            std::cout << "********************************" << std::endl;
+            return 1;
+        }
+        int menu2(){
+            std::cout << "********************************" << std::endl;
+            std::cout << "           MY CHATROOM" << std::endl;
+            std::cout << "          1.查看好友、群聊" << std::endl;
+            std::cout << "          2.添加好友/群聊" << std::endl;
+            std::cout << "          3.删除好友/群聊" << std::endl;
+            std::cout << "          4.拉黑好友/群聊" << std::endl;
+            std::cout << "            5.解除拉黑" << std::endl;
+            std::cout << "            6.退出登录" << std::endl;
+            std::cout << "        （选择数字执行对应操作）" << std::endl;
+            std::cout << "********************************" << std::endl;
+            return 2;
+        }
+        int menu3(){//好友群聊列表
+            std::cout << "好友群聊如下：" << std::endl;
+            return 3;
+        }
+        int menu4(){//添加好友、群聊，创建群聊
+            std::cout << "您要添加好友或群聊，还是创建群聊？" << std::endl;
+            std::cout << "        1.添加好友" << std::endl;
+            std::cout << "        2.添加群聊" << std::endl;
+            std::cout << "        3.创建群聊" << std::endl;
+            std::cout << "       4.返回上一级" << std::endl;
+            return 4;
+        }
+        int menu5(){
+            std::cout << "请输入您要添加的好友名或id" << std::endl;
+            return 5;
+        }
+        int menu6(){
+            std::cout << "请输入您要添加的群聊名或id" << std::endl;
+            return 6;
+        }
+        int menu7(){
+            std::cout << "请输入您要创建的群聊名" << std::endl;
+            return 7;
+        }
+        int menu8(){
+            std::cout << "1.查看好友信息" << std::endl;
+            std::cout << "2.聊天" << std::endl;
+            std::cout << "3.拉黑" << std::endl;
+            std::cout << "4.返回上一级" << std::endl;
+            return 8;
+        }
+        int menu9(){}//聊天界面
+        int menu10(){
+            std::cout << "请输入您要删除的好友名或id" << std::endl;
+            return 10;
+        }
+        int menu11(){
+            std::cout << "请输入您要退出的群聊名或id" << std::endl;
+            return 11;
         }
 };
 int connecttoserver(){//检测返回值判断是否退出main函数
