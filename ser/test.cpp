@@ -110,54 +110,12 @@ int main() {
     ser.sockettoepoll();
 
     // 连接到 Redis 服务器
-    redisContext* redis_context = redisConnect("127.0.0.1", 6379);
-    if (redis_context == nullptr || redis_context->err) {
-        if (redis_context) {
-            std::cerr << "Error: " << redis_context->errstr << std::endl;
-            redisFree(redis_context);
-        } else {
-            std::cerr << "Can't allocate redis context" << std::endl;
-        }
-        exit(EXIT_FAILURE);
-    }
+    ser.connecttoredis();
 
-    while (true) {
-        event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-        if (event_count == -1) {
-            std::cerr << "epoll_wait failed" << std::endl;
-            close(server_socket);
-            close(epoll_fd);
-            redisFree(redis_context);
-            exit(EXIT_FAILURE);
-        }
-
-        for (int i = 0; i < event_count; i++) {
-            if (events[i].data.fd == server_socket) {
-                client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len);
-                if (client_socket == -1) {
-                    std::cerr << "Accept failed" << std::endl;
-                    continue;
-                }
-
-                event.events = EPOLLIN | EPOLLET;
-                event.data.fd = client_socket;
-                if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_socket, &event) == -1) {
-                    std::cerr << "epoll_ctl failed" << std::endl;
-                    close(client_socket);
-                }
-
-                std::cout << "New connection accepted" << std::endl;
-            } else {
-                // handle_client(events[i].data.fd, redis_context);
-                std::thread([events, i, redis_context]() {
-                    handle_client(events[i].data.fd, redis_context);
-                }).detach();
-            }
-        }
-    }
+    ser.runserver();
 
     close(ser.server_socket);
     close(ser.epoll_fd);
-    redisFree(redis_context);
+    redisFree(ser.redis_context);
     return 0;
 }

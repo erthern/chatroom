@@ -25,7 +25,6 @@
 #include <boost/asio.hpp>
 #include <ev.h>
 #define MAX_EVENTS 10
-#define PORT 12345
 #define SIGNUP 1//注册
 #define LOGIN 2//登录
 #define LOGOUT 3//登出

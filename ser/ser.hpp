@@ -47,6 +47,8 @@ using boost::asio::ip::tcp;
 #define GROUPCHAT 18//进入群聊
 const int BUFFER_SIZE = 4096;
 const char* SERVER_IP = "127.0.0.1";
+#define MAX_EVENTS 10
+#define PORT 12345
 int client_socket;
 struct sockaddr_in server_addr;
 using json = nlohmann::json;
@@ -65,7 +67,7 @@ class user {
             {"username",this->username},
             {"password",this->password},
             {"status",this->status},
-            {"question",this->que},;
+            {"question",this->que},
             {"answer",this->ans},
             {"message",this->message},
             {"signal",this->signal},
@@ -88,6 +90,19 @@ class server {
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
     struct epoll_event event, events[MAX_EVENTS];
+    redisContext* redis_context = redisConnect("127.0.0.1", 6379);
+
+    void connecttoredis(){
+        if (redis_context == nullptr || redis_context->err) {
+            if (redis_context) {
+                std::cerr << "Error: " << redis_context->errstr << std::endl;
+                redisFree(redis_context);
+            } else {
+                std::cerr << "Can't allocate redis context" << std::endl;
+            }
+            exit(EXIT_FAILURE);
+        }
+    }
 
     void setsocket(){
         // 创建服务器端套接字
@@ -147,6 +162,43 @@ class server {
             exit(EXIT_FAILURE);
         }
         std::cout << "Server listening on port " << PORT << std::endl;
+    }
+
+    int runserver(){
+        while (true) {
+            event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+            if (event_count == -1) {
+                std::cerr << "epoll_wait failed" << std::endl;
+                close(server_socket);
+                close(epoll_fd);
+                redisFree(redis_context);
+                exit(EXIT_FAILURE);
+            }
+
+            for (int i = 0; i < event_count; i++) {
+                if (events[i].data.fd == server_socket) {
+                    client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len);
+                    if (client_socket == -1) {
+                        std::cerr << "Accept failed" << std::endl;
+                        continue;
+                    }
+
+                    event.events = EPOLLIN | EPOLLET;
+                    event.data.fd = client_socket;
+                    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_socket, &event) == -1) {
+                        std::cerr << "epoll_ctl failed" << std::endl;
+                        close(client_socket);
+                    }
+
+                    std::cout << "New connection accepted" << std::endl;
+                } else {
+                    // handle_client(events[i].data.fd, redis_context);
+                    std::thread([this, i]() {
+                        handle_client(this->events[i].data.fd, this->redis_context);
+                    }).detach();
+                }
+            }
+        }
     }
     void handle_client(int client_socket, redisContext* redis_context) {
     char buffer[BUFFER_SIZE] = {0};
