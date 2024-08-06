@@ -27,7 +27,7 @@
 #define MAX_EVENTS 10
 #define SIGNUP 1//注册
 #define LOGIN 2//登录
-#define LOGOUT 3//登出
+#define LOGOUT 3//注销
 #define FRIEND 4//查看好友
 #define BACK 5//回到上一级
 #define NLAHEI 6//不拉黑
@@ -61,6 +61,8 @@ class user {
         std::string que;//密保问题
         std::string ans;//密保问题答案
         std::string message;//消息user client;
+        std::string uid;
+        uid = "-1";
         int signal;//功能信号
         json juser{
             {"username",this->username},
@@ -70,6 +72,7 @@ class user {
             {"answer",this->ans},
             {"message",this->message},
             {"signal",this->signal},
+            {"uid",this->uid},
         };
         json toJson() {
             return {
@@ -79,7 +82,8 @@ class user {
                 {"question", que},
                 {"answer", ans},
                 {"message", message},
-                {"signal", signal}
+                {"signal", signal},
+                {"uid",uid}
             };
     }
         void menu(){
@@ -118,6 +122,8 @@ class user {
                 this->status="offline";
                 this->signal=SIGHUP;
                 juser=this->toJson();
+                senduser();
+                receiveuser();
                 return;
         }
         void senduser(){
@@ -146,6 +152,8 @@ class user {
                 this->password = getHiddenPassword();
                 this->signal=LOGIN;
                 juser=this->toJson();
+                senduser();
+                receiveuser();
                 return;
         }
         void logout(){
@@ -157,6 +165,8 @@ class user {
                 this->password = getHiddenPassword();
                 this->signal=LOGOUT;
                 juser=this->toJson();
+                senduser();
+                receiveuser();
         }
         std::string getHiddenPassword() {
             struct termios old, current;
@@ -195,6 +205,7 @@ class user {
             return 1;
         }
         int menu2(){
+            system("clear");
             std::cout << "********************************" << std::endl;
             std::cout << "           MY CHATROOM" << std::endl;
             std::cout << "          1.查看好友、群聊" << std::endl;
@@ -207,11 +218,13 @@ class user {
             std::cout << "********************************" << std::endl;
             return 2;
         }
-        int menu3(){//好友群聊列表
+        int menu3(){//好友群聊列表选择要添加的好友
+            system("clear");
             std::cout << "好友群聊如下：" << std::endl;
             return 3;
         }
         int menu4(){//添加好友、群聊，创建群聊
+            system("clear");
             std::cout << "您要添加好友或群聊，还是创建群聊？" << std::endl;
             std::cout << "        1.添加好友" << std::endl;
             std::cout << "        2.添加群聊" << std::endl;
@@ -220,31 +233,42 @@ class user {
             return 4;
         }
         int menu5(){
-            std::cout << "请输入您要添加的好友名或id" << std::endl;
+            system("clear");
+            std::cout << "添加好友" << std::endl;
+            std::cout << "1.请输入您要添加的好友名或id" << std::endl;
+            std::cout << "2.返回上一级" << std::endl;
             return 5;
         }
         int menu6(){
+            system("clear");
+            std::cout << "添加群聊" << std::endl; 
             std::cout << "请输入您要添加的群聊名或id" << std::endl;
+            std::cout << "0.返回上一级" << std::endl;
             return 6;
         }
         int menu7(){
+            system("clear");
+            std::cout << "创建群聊" << std::endl;
             std::cout << "请输入您要创建的群聊名" << std::endl;
+            std::cout << "0.返回上一级" << std::endl;
             return 7;
         }
         int menu8(){
+            system("clear");
             std::cout << "1.查看好友信息" << std::endl;
             std::cout << "2.聊天" << std::endl;
-            std::cout << "3.拉黑" << std::endl;
-            std::cout << "4.返回上一级" << std::endl;
+            std::cout << "3.返回上一级" << std::endl;
             return 8;
         }
         int menu9(){return 9;}//聊天界面
         int menu10(){
-            std::cout << "请输入您要删除的好友名或id" << std::endl;
+            system("clear");
+            std::cout << "请输入您要删除的好友名或id或者您要退出的群聊名或id" << std::endl;
+            std::cout << "0.返回上一级" << std::endl;
             return 10;
         }
         int menu11(){
-            std::cout << "请输入您要退出的群聊名或id" << std::endl;
+            std::cout << "" << std::endl;
             return 11;
         }
 };
