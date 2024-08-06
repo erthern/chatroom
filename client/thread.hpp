@@ -1,4 +1,5 @@
 #include "../client/head.hpp"
+std::atomic<int> shared_value{0};
 void client_thread_menu(user new_user){
     while(1){
         new_user.menu1();

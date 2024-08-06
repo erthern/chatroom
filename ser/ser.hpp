@@ -45,7 +45,7 @@ using boost::asio::ip::tcp;
 #define CHAT 16//聊天
 #define PRIVATECHAT 17//进入私聊
 #define GROUPCHAT 18//进入群聊
-const int BUFFER_SIZE = 4096;
+const int BUFFER_SIZE = 8192;
 const char* SERVER_IP = "127.0.0.1";
 #define MAX_EVENTS 10
 #define PORT 12345
@@ -70,7 +70,7 @@ class user {
             {"question",this->que},
             {"answer",this->ans},
             {"message",this->message},
-            {"signal",this->signal},
+            {"signal",this->signal},//可删
         };
         json toJson() {
             return {
@@ -80,7 +80,7 @@ class user {
                 {"question", que},
                 {"answer", ans},
                 {"message", message},
-                {"signal", signal}
+                {"signal", signal}//可删
             };
     }
 };
@@ -325,12 +325,13 @@ class server {
                                 ssize_t i = write(client_socket, message.c_str(), message.size());
                                 if(i <= 0) std::cout << "write error" << std::endl;
                         }
-                        else{std::string message;
-                        message += "User ";
-                        message += username;
-                        message += "'s password is wrong.";
-                        ssize_t i = write(client_socket, message.c_str(), message.size());
-                        if(i <= 0) std::cout << "write error" << std::endl;}
+                        else{
+                            std::string message;
+                            message += "User ";
+                            message += username;
+                            message += "'s password is wrong.";
+                            ssize_t i = write(client_socket, message.c_str(), message.size());
+                            if(i <= 0) std::cout << "write error" << std::endl;}
                     } else {
                         // 未注册用户
                         std::string message;
@@ -342,6 +343,21 @@ class server {
                     }
                     freeReplyObject(reply);
                 }
+            }
+        }
+        else if(signal == FRIEND) {
+            std::string username = received_json["username"];
+            redisReply* reply = (redisReply*)redisCommand(redis_context, "EXISTS friend:%s", username.c_str());
+            if (reply == nullptr) {
+                std::cerr << "Redis command failed" << std::endl;
+            }
+            else if(reply->integer == 1){
+                redisCommand(redis_context, "ZADD firend:%s",username.c_str());
+                if (reply == nullptr) {
+                    printf("Redis command error\n");
+                    return 1;
+                }
+                else if()
             }
         }
     }
