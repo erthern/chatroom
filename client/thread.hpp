@@ -7,10 +7,10 @@ void client_menu(user new_user){
         std::cin >> i;
         if(i == 4) break;
         else if(i == 2) {
-            login();//增加
+            new_user.login();//增加
         }
         else if(i == 1) {
-            signup();
+            new_user.signup();
             while(1){
                 new_user.menu2();
                 std::cin >> i;

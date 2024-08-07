@@ -27,6 +27,7 @@
 using boost::asio::ip::tcp;
 #define MAX_EVENTS 10
 #define PORT 12345
+#define NONE 0 //无操作
 #define SIGNUP 1//注册
 #define LOGIN 2//登录
 #define LOGOUT 3//登出
@@ -54,6 +55,7 @@ struct sockaddr_in server_addr;
 using json = nlohmann::json;
 //redis 执行命令为 redisCommand(redisContext *c, const char *format, ...)
 //第一个参数代表redisContext结构体指针，第二个参数代表命令
+
 class server {
     public:
     public:
@@ -62,7 +64,9 @@ class server {
         std::string status;//在线与否
         std::string que;//密保问题
         std::string ans;//密保问题答案
-        std::string message;//消息
+        std::string message;//消息user client;
+        std::string id;
+        int menushu;
         int signal;//功能信号
         json juser{
             {"username",this->username},
@@ -75,15 +79,31 @@ class server {
         };
         json toJson() {
             return {
-                {"username", username},
-                {"password", password},
-                {"status", status},
-                {"question", que},
-                {"answer", ans},
-                {"message", message},
-                {"signal", signal}//可删
+                {"username", this->username},
+                {"password", this->password},
+                {"status", this->status},
+                {"question", this->que},
+                {"answer", this->ans},
+                {"message", this->message},
+                {"signal", this->signal}//可删
             };
-    }
+        }
+        json userrequest{
+            {"username",username},
+            {"status",status},
+            {"id",id},
+            {"menushu",menushu},
+            {"signal",signal},
+        };
+        json touserrequest(){
+            return {
+                {"username",username},
+                {"status",status},
+                {"id",id},
+                {"menushu",menushu},
+                {"signal",signal},
+            };
+        }
     int server_socket, client_socket, epoll_fd, event_count;
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
@@ -232,12 +252,13 @@ class server {
                         if(i <= 0) std::cout << "write error" << std::endl;
                     } else {
                         // 未注册用户，存储信息
-                        std::string password = received_json["password"];
-                        std::string status = received_json["status"];
-                        std::string que = received_json["question"];
-                        std::string ans = received_json["answer"];
-                        redisCommand(redis_context, "HSET user:%s username %s password %s status %s question %s answer %s", 
-                                     username.c_str(), username.c_str(), password.c_str(), status.c_str(), que.c_str(), ans.c_str());
+                        password = received_json["password"];
+                        status = received_json["status"];
+                        que = received_json["question"];
+                        ans = received_json["answer"];
+                        id = generateID();
+                        redisCommand(redis_context, "HSET user:%s username %s password %s status %s question %s answer %s id %s",
+                                     username.c_str(), username.c_str(), password.c_str(), status.c_str(), que.c_str(), ans.c_str(),id.c_str());
                         std::cout << "User " << username << " registered successfully." << std::endl;
                         std::string message;
                         message += "User ";
@@ -350,17 +371,17 @@ class server {
                 std::cerr << "Redis command failed" << std::endl;
             }
             else if(reply->integer == 0){
-                reply = redisCommand(redis_context, "ZADD firend:%s",username.c_str());
+                reply = (redisReply*)redisCommand(redis_context, "ZADD firend:%s",username.c_str());
                 if (reply == nullptr) {
                     printf("Redis command error\n");
-                    return 1;
+                    return ;
                 }
             }
             else {
-                reply = redisCommand(redis_context, "ZRANGE firend:%s 0 -1",username.c_str());
+                reply = (redisReply*)redisCommand(redis_context, "ZRANGE firend:%s 0 -1",username.c_str());
                 if(reply == nullptr){
                     printf("Redis command error\n");
-                    return 1;
+                    return ;
                 }
                 else if(reply->elements==0){
                     std::string message;
@@ -373,14 +394,14 @@ class server {
                 else {
                     std::string message;
                     for(int i = 0; i < reply->elements;i+=2){
-                        redisReply *reply1 = redisCommand(redis_context,"HGET user:%s status",reply->element[i]);
+                        redisReply *reply1 = (redisReply*)redisCommand(redis_context,"HGET user:%s status",reply->element[i]);
                         if(reply1 == nullptr) continue;
                         else if(reply1->str == "offline") {
-                            message += reply->elements[i];
+                            message += reply->element[i]->str;
                             message += "offline";
                             }
                         else if(reply1->str == "online") {
-                            message += reply->elements[i];
+                            message += reply->element[i]->str;
                             message += "online";
                             }
                         else{
@@ -400,18 +421,20 @@ class server {
         }
 }
     void sendtoclient(int client_socket){}
-};
-std::string generateID() {
-    std::srand(std::time(nullptr)); //按照时间生成随机数，设置种子
+    void receivefromclient(int client_socket){}
+    std::string generateID() {
+        std::srand(std::time(nullptr)); //按照时间生成随机数，设置种子
 
-    //第一位
-    char first = static_cast<char>('1' + std::rand() % 9);
+        //第一位
+        char first = static_cast<char>('1' + std::rand() % 9);
 
-    //其余九位
-    std::string id = std::string(1, first);
-    for (int i = 0; i < 9; i++) {
-        id += std::to_string(std::rand() % 10);
+        //其余九位
+        std::string id = std::string(1, first);
+        for (int i = 0; i < 9; i++) {
+            id += std::to_string(std::rand() % 10);
+        }
+
+        return id;
     }
+};
 
-    return id;
-}

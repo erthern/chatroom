@@ -61,8 +61,8 @@ class user {
         std::string que;//密保问题
         std::string ans;//密保问题答案
         std::string message;//消息user client;
-        std::string uid;
-        uid = "-1";
+        std::string id;
+        int menushu;
         int signal;//功能信号
         json juser{
             {"username",this->username},
@@ -73,6 +73,14 @@ class user {
             {"message",this->message},
             {"signal",this->signal},
             {"uid",this->uid},
+            {"menu",this->menushu},
+        };
+        json userrequest{
+            {"username",this->username},
+            {"status",this->status},
+            {"id",this->id},
+            {"menushu",this->menushu},
+            {"signal",this->signal},
         };
         json toJson() {
             return {
@@ -83,9 +91,18 @@ class user {
                 {"answer", ans},
                 {"message", message},
                 {"signal", signal},
-                {"id",id}
+                {"id",id},
             };
-    }
+        }
+        json touserrequest(){
+            return {
+                {"username",username},
+                {"status",status},
+                {"id",id},
+                {"menushu",menushu},
+                {"signal",signal},
+            }
+        }
         void menu(){
             while(1){
             menu1();
