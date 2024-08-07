@@ -61,8 +61,8 @@ class user {
         std::string que;//密保问题
         std::string ans;//密保问题答案
         std::string message;//消息user client;
-        // std::string uid;
-        // uid = "-1";
+        std::string uid;
+        uid = "-1";
         int signal;//功能信号
         json juser{
             {"username",this->username},
@@ -72,7 +72,7 @@ class user {
             {"answer",this->ans},
             {"message",this->message},
             {"signal",this->signal},
-            // {"uid",this->uid},
+            {"uid",this->uid},
         };
         json toJson() {
             return {
@@ -83,7 +83,7 @@ class user {
                 {"answer", ans},
                 {"message", message},
                 {"signal", signal},
-                {"uid",uid}
+                {"id",id}
             };
     }
         void menu(){

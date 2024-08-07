@@ -54,7 +54,8 @@ struct sockaddr_in server_addr;
 using json = nlohmann::json;
 //redis 执行命令为 redisCommand(redisContext *c, const char *format, ...)
 //第一个参数代表redisContext结构体指针，第二个参数代表命令
-class user {
+class server {
+    public:
     public:
         std::string username;
         std::string password;
@@ -83,9 +84,6 @@ class user {
                 {"signal", signal}//可删
             };
     }
-};
-class server {
-    public:
     int server_socket, client_socket, epoll_fd, event_count;
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
@@ -351,13 +349,49 @@ class server {
             if (reply == nullptr) {
                 std::cerr << "Redis command failed" << std::endl;
             }
-            else if(reply->integer == 1){
-                redisCommand(redis_context, "ZADD firend:%s",username.c_str());
+            else if(reply->integer == 0){
+                reply = redisCommand(redis_context, "ZADD firend:%s",username.c_str());
                 if (reply == nullptr) {
                     printf("Redis command error\n");
                     return 1;
                 }
-                else if()
+            }
+            else {
+                reply = redisCommand(redis_context, "ZRANGE firend:%s 0 -1",username.c_str());
+                if(reply == nullptr){
+                    printf("Redis command error\n");
+                    return 1;
+                }
+                else if(reply->elements==0){
+                    std::string message;
+                    message += "User ";
+                    message += username;
+                    message += " has no friends.";
+                    ssize_t i = write(client_socket, message.c_str(), message.size());
+                    if(i <= 0) std::cout << "write error" << std::endl;
+                }
+                else {
+                    std::string message;
+                    for(int i = 0; i < reply->elements;i+=2){
+                        redisReply *reply1 = redisCommand(redis_context,"HGET user:%s status",reply->element[i]);
+                        if(reply1 == nullptr) continue;
+                        else if(reply1->str == "offline") {
+                            message += reply->elements[i];
+                            message += "offline";
+                            }
+                        else if(reply1->str == "online") {
+                            message += reply->elements[i];
+                            message += "online";
+                            }
+                        else{
+                            std::cerr << "no this friend.";
+                            continue;
+                            }
+                        message += "\n";
+                    }
+                    ssize_t i = write(client_socket, message.c_str(), message.size());
+                    if(i <= 0) std::cout << "write error" << std::endl;
+                }
             }
         }
     }
@@ -365,5 +399,19 @@ class server {
             std::cerr << "JSON parse error: " << e.what() << std::endl;
         }
 }
+    void sendtoclient(int client_socket){}
 };
+std::string generateID() {
+    std::srand(std::time(nullptr)); //按照时间生成随机数，设置种子
 
+    //第一位
+    char first = static_cast<char>('1' + std::rand() % 9);
+
+    //其余九位
+    std::string id = std::string(1, first);
+    for (int i = 0; i < 9; i++) {
+        id += std::to_string(std::rand() % 10);
+    }
+
+    return id;
+}
