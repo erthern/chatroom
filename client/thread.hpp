@@ -12,29 +12,29 @@ void client_menu(user new_user){
         else if(i == 1) {
             new_user.signup();
             while(1){
-                new_user.menu2();
+                new_user.menu2();//登录后界面
                 std::cin >> i;
                 if(i == 1) {
-                    new_user.menu3();
+                    new_user.menu3();//查看好友
                 }
                 else if(i == 2) {
                     new_user.menu4();//添加
                     std::cin >> i;
                     if(i == 1) {
-                        new_user.menu5();
+                        new_user.menu5();//添加好友
                     }
                     else if(i == 2) {
-                        new_user.menu6();
+                        new_user.menu6();//添加群聊
                     }
                     else if(i == 3) {
-                        new_user.menu7();
+                        new_user.menu7();//创建群聊
                     }
                     else if(i == 4) {
                         break;
                     }
                 }
                 else if(i == 3){
-                    new_user.menu10();
+                    new_user.menu10();//删除好友、群聊
                 }
             }
         }
