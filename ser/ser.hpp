@@ -58,7 +58,6 @@ using json = nlohmann::json;
 
 class server {
     public:
-    public:
         std::string username;
         std::string password;
         std::string status;//在线与否
@@ -66,8 +65,12 @@ class server {
         std::string ans;//密保问题答案
         std::string message;//消息user client;
         std::string id;
+        std::string tousername;
+        std::string touserid;
+        std::string touserstatus;
         int menushu;
         int signal;//功能信号
+        std::unordered_map<std::string,int> id_fd;
         json juser{
             {"username",this->username},
             {"password",this->password},
@@ -75,26 +78,32 @@ class server {
             {"question",this->que},
             {"answer",this->ans},
             {"message",this->message},
-            {"signal",this->signal},//可删
+            {"signal",this->signal},
+            {"id",this->id},
+            {"menu",this->menushu},
+        };
+        json userrequest{
+            {"username",this->username},
+            {"status",this->status},
+            {"id",this->id},
+            {"menushu",this->menushu},
+            {"signal",this->signal},
+            {"tousername",this->tousername},
+            {"touserstatus",this->touserstatus},
+            {"touserid",this->touserid},
         };
         json toJson() {
             return {
-                {"username", this->username},
-                {"password", this->password},
-                {"status", this->status},
-                {"question", this->que},
-                {"answer", this->ans},
-                {"message", this->message},
-                {"signal", this->signal}//可删
+                {"username", username},
+                {"password", password},
+                {"status", status},
+                {"question", que},
+                {"answer", ans},
+                {"message", message},
+                {"signal", signal},
+                {"id",id},
             };
         }
-        json userrequest{
-            {"username",username},
-            {"status",status},
-            {"id",id},
-            {"menushu",menushu},
-            {"signal",signal},
-        };
         json touserrequest(){
             return {
                 {"username",username},
@@ -102,6 +111,9 @@ class server {
                 {"id",id},
                 {"menushu",menushu},
                 {"signal",signal},
+                {"touser",tousername},
+                {"touserid",touserid},
+                {"touserstatus",touserstatus},
             };
         }
     int server_socket, client_socket, epoll_fd, event_count;
@@ -419,6 +431,12 @@ class server {
                 }
             }
         }
+        else if(signal == ADDFRIEND){
+            std::string username = received_json["username"];
+            std::string tousername = received_json["tousername"];
+            std::string touserid = received_json["touserid"];
+            redisReply* reply = (redisReply*)redisCommand(redis_context,"HGET user:%s ",tousername.c_str());
+        }
     }
     catch (json::parse_error& e) {
             std::cerr << "JSON parse error: " << e.what() << std::endl;
@@ -441,4 +459,39 @@ class server {
         return id;
     }
 };
+std::string findValueInAllHashes(redisContext *c, const std::string &fieldToFind) {
+    // 获取所有哈希表键
+    redisReply *keysReply = static_cast<redisReply *>(redisCommand(c, "KEYS *"));
+    if (keysReply == nullptr || keysReply->type != REDIS_REPLY_ARRAY) {
+        std::cout << "Error executing KEYS command: " << c->errstr << std::endl;
+        return "";
+    }
+
+    // 遍历每个哈希表键,查找指定字段的值
+    for (size_t i = 0; i < keysReply->elements; i++) {
+        std::string hashKey = keysReply->element[i]->str;
+
+        // 执行 HGET 命令获取指定字段的值
+        redisReply *valueReply = static_cast<redisReply *>(redisCommand(c, "HGET %s %s", hashKey.c_str(), fieldToFind.c_str()));
+        if (valueReply == nullptr) {
+            std::cout << "Error executing HGET command: " << c->errstr << std::endl;
+            continue;
+        }
+
+        // 如果找到了值,返回该值
+        if (valueReply->type != REDIS_REPLY_NIL) {
+            std::string value = valueReply->str;
+            freeReplyObject(valueReply);
+            freeReplyObject(keysReply);
+            return value;
+        }
+
+        // 未找到值,释放资源并继续遍历下一个哈希表
+        freeReplyObject(valueReply);
+    }
+
+    // 如果所有哈希表都没有找到,释放资源并返回空字符串
+    freeReplyObject(keysReply);
+    return "";
+}
 

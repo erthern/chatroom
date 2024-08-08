@@ -62,7 +62,9 @@ class user {
         std::string ans;//密保问题答案
         std::string message;//消息user client;
         std::string id;
-        std::string touser;
+        std::string tousername;
+        std::string touserid;
+        std::string touserstatus;
         int menushu;
         int signal;//功能信号
         std::unordered_map<std::string,int> id_fd;
@@ -83,7 +85,9 @@ class user {
             {"id",this->id},
             {"menushu",this->menushu},
             {"signal",this->signal},
-            {"touser",this->touser},
+            {"tousername",this->tousername},
+            {"touserstatus",this->touserstatus},
+            {"touserid",this->touserid},
         };
         json toJson() {
             return {
@@ -104,6 +108,9 @@ class user {
                 {"id",id},
                 {"menushu",menushu},
                 {"signal",signal},
+                {"touser",tousername},
+                {"touserid",touserid},
+                {"touserstatus",touserstatus},
             };
         }
         void menu(){
@@ -314,6 +321,13 @@ class user {
         void addfriend(){
             std::string friend;
             std::cin >> friend;
+            signal = ADDFRIEND;
+            id = friend;
+            tousername = friend;
+            touserid = friend;
+            userrequest = touserrequest();
+            ssize_t sent_bytes = send(client_socket, userrequest.dump().c_str(),userrequest.dump().length(),0);
+            if(sent_bytes < 0) return;
         }
 };
 int connecttoserver(){//检测返回值判断是否退出main函数
