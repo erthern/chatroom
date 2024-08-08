@@ -378,12 +378,12 @@ class server {
         }
         else if(signal == FRIEND) {
             std::string username = received_json["username"];
-            redisReply* reply = (redisReply*)redisCommand(redis_context, "EXISTS friend:%s", username.c_str());
+            redisReply* reply = (redisReply*)redisCommand(redis_context, "EXISTS user:%s'sfriends", username.c_str());
             if (reply == nullptr) {
                 std::cerr << "Redis command failed" << std::endl;
             }
             else if(reply->integer == 0){
-                reply = (redisReply*)redisCommand(redis_context, "ZADD firend:%s",username.c_str());
+                reply = (redisReply*)redisCommand(redis_context, "ZADD user:%s'sfriends",username.c_str());
                 if (reply == nullptr) {
                     printf("Redis command error\n");
                     return ;
@@ -436,6 +436,29 @@ class server {
             std::string tousername = received_json["tousername"];
             std::string touserid = received_json["touserid"];
             redisReply* reply = (redisReply*)redisCommand(redis_context,"HGET user:%s ",tousername.c_str());
+            if(reply == nullptr){
+                tousername = findValueInAllHashes(redis_context,touserid);
+                if(!tousername.empty()){
+                    reply = (redisReply*)redisCommand(redis_context,"ZADD user:%s'sfriends %f %s",username.c_str(),NLAHEI,tousername.c_str());
+                    if(reply == nullptr){
+                        std::cerr << "redisCommand error" << std::endl;
+                        } 
+                    else{
+                        std::string message ;
+                        message = "Successfully added.";
+                        ssize_t i = write(client_socket,message.c_str(),message.size());
+                        if(i < 0) std::cerr << "write err" << std::endl;
+                    }
+                }
+                else {
+                    std::string message;
+                    message += "user:";
+                    message += tousername;
+                    message += " is unfounded.";
+                    ssize_t i = write(client_socket, message.c_str(),0);
+                    if(i <= 0) std::cout << "write error" << std::endl;
+                }
+            }
         }
     }
     catch (json::parse_error& e) {
@@ -458,40 +481,49 @@ class server {
 
         return id;
     }
+    std::string findValueInAllHashes(redisContext* c, const std::string& targetId) {
+        std::string matchingTables;
+
+        // 获取所有以"user:"开头的键
+        redisReply* reply = (redisReply*)redisCommand(c, "KEYS user:*");
+        if (reply == nullptr) {
+            std::cerr << "Error: " << c->errstr << std::endl;
+            return matchingTables;
+        }
+
+        if (reply->type == REDIS_REPLY_ARRAY) {
+            for (size_t i = 0; i < reply->elements; i++) {
+                std::string key(reply->element[i]->str);
+
+                // 获取哈希表的所有字段和值
+                redisReply* hgetallReply = (redisReply*)redisCommand(c, "HGETALL %s", key.c_str());
+                if (hgetallReply == nullptr) {
+                    std::cerr << "Error: " << c->errstr << std::endl;
+                    continue;
+                }
+
+                if (hgetallReply->type == REDIS_REPLY_ARRAY) {
+                    for (size_t j = 0; j < hgetallReply->elements; j += 2) {
+                        std::string field(hgetallReply->element[j]->str);
+                        std::string value(hgetallReply->element[j + 1]->str);
+
+                        // 检查值是否匹配目标ID
+                        if (value == targetId) {
+                            // 提取并保存表头部分
+                            std::string tableHeader = key.substr(5); // Remove "user:" prefix
+                            matchingTables = tableHeader;
+                            break; // 找到后可以选择继续或停止
+                        }
+                    }
+                }
+
+                freeReplyObject(hgetallReply);
+            }
+        }
+
+        freeReplyObject(reply);
+        return matchingTables;
+    }
 };
-std::string findValueInAllHashes(redisContext *c, const std::string &fieldToFind) {
-    // 获取所有哈希表键
-    redisReply *keysReply = static_cast<redisReply *>(redisCommand(c, "KEYS *"));
-    if (keysReply == nullptr || keysReply->type != REDIS_REPLY_ARRAY) {
-        std::cout << "Error executing KEYS command: " << c->errstr << std::endl;
-        return "";
-    }
 
-    // 遍历每个哈希表键,查找指定字段的值
-    for (size_t i = 0; i < keysReply->elements; i++) {
-        std::string hashKey = keysReply->element[i]->str;
-
-        // 执行 HGET 命令获取指定字段的值
-        redisReply *valueReply = static_cast<redisReply *>(redisCommand(c, "HGET %s %s", hashKey.c_str(), fieldToFind.c_str()));
-        if (valueReply == nullptr) {
-            std::cout << "Error executing HGET command: " << c->errstr << std::endl;
-            continue;
-        }
-
-        // 如果找到了值,返回该值
-        if (valueReply->type != REDIS_REPLY_NIL) {
-            std::string value = valueReply->str;
-            freeReplyObject(valueReply);
-            freeReplyObject(keysReply);
-            return value;
-        }
-
-        // 未找到值,释放资源并继续遍历下一个哈希表
-        freeReplyObject(valueReply);
-    }
-
-    // 如果所有哈希表都没有找到,释放资源并返回空字符串
-    freeReplyObject(keysReply);
-    return "";
-}
 

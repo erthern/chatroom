@@ -2,7 +2,7 @@
 std::atomic<int> shared_value{0};
 void client_menu(user new_user){
     while(1){
-        new_user.menu1();
+        new_user.menushu=new_user.menu1();
         int i;
         std::cin >> i;
         if(i == 4) break;
@@ -12,30 +12,32 @@ void client_menu(user new_user){
         else if(i == 1) {
             new_user.signup();
             while(1){
-                new_user.menu2();//登录后界面
+                new_user.menushu=new_user.menu2();//登录后界面
                 std::cin >> i;
                 if(i == 1) {
-                    new_user.menu3();//查看好友
+                    new_user.menushu=new_user.menu3();//查看好友
                     new_user.receivefriend();
                 }
                 else if(i == 2) {
-                    new_user.menu4();//添加
+                    new_user.menushu=new_user.menu4();//添加
                     std::cin >> i;
                     if(i == 1) {
-                        new_user.menu5();//添加好友
+                        new_user.menushu=new_user.menu5();//添加好友
+                        new_user.addfriend();
+                        new_user.receiveuser();
                     }
                     else if(i == 2) {
-                        new_user.menu6();//添加群聊
+                        new_user.menushu=new_user.menu6();//添加群聊
                     }
                     else if(i == 3) {
-                        new_user.menu7();//创建群聊
+                        new_user.menushu=new_user.menu7();//创建群聊
                     }
                     else if(i == 4) {
                         break;
                     }
                 }
                 else if(i == 3){
-                    new_user.menu10();//删除好友、群聊
+                    new_user.menushu=new_user.menu10();//删除好友、群聊
                 }
             }
         }
