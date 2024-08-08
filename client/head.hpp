@@ -62,8 +62,10 @@ class user {
         std::string ans;//密保问题答案
         std::string message;//消息user client;
         std::string id;
+        std::string touser;
         int menushu;
         int signal;//功能信号
+        std::unordered_map<std::string,int> id_fd;
         json juser{
             {"username",this->username},
             {"password",this->password},
@@ -72,7 +74,7 @@ class user {
             {"answer",this->ans},
             {"message",this->message},
             {"signal",this->signal},
-            {"uid",this->uid},
+            {"id",this->id},
             {"menu",this->menushu},
         };
         json userrequest{
@@ -81,6 +83,7 @@ class user {
             {"id",this->id},
             {"menushu",this->menushu},
             {"signal",this->signal},
+            {"touser",this->touser},
         };
         json toJson() {
             return {
@@ -101,7 +104,7 @@ class user {
                 {"id",id},
                 {"menushu",menushu},
                 {"signal",signal},
-            }
+            };
         }
         void menu(){
             while(1){
@@ -150,7 +153,7 @@ class user {
         }
         void receiveuser(){
             // 接收服务器发送的数据
-            char buffer[1024]={0};
+            char buffer[BUFFER_SIZE]={0};
             ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
             if (bytes_received < 0) {
                 std::cerr << "Receive failed" << std::endl;
@@ -158,6 +161,18 @@ class user {
             else {
                 buffer[bytes_received] = '\0'; // 确保缓冲区以null字符结尾
                 std::cout << "Message from server: " << buffer << std::endl;
+            }
+        }
+        void receivefriend(){
+            // 接收服务器发送的数据
+            char buffer[BUFFER_SIZE]={0};
+            ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+            if (bytes_received < 0) {
+                std::cerr << "Receive failed" << std::endl;
+            } 
+            else {
+                buffer[bytes_received] = '\0'; // 确保缓冲区以null字符结尾
+                std::cout << buffer << std::endl;
             }
         }
         void login(){
@@ -185,6 +200,11 @@ class user {
                 senduser();
                 receiveuser();
         }
+        void choosefriend(){
+            int i;
+            std::cin >> i;//第i个friend
+        }
+        void sendfriend(){}
         std::string getHiddenPassword() {
             struct termios old, current;
             char c;
@@ -246,14 +266,14 @@ class user {
             std::cout << "        1.添加好友" << std::endl;
             std::cout << "        2.添加群聊" << std::endl;
             std::cout << "        3.创建群聊" << std::endl;
-            std::cout << "       4.返回上一级" << std::endl;
+            std::cout << "       0.返回上一级" << std::endl;
             return 4;
         }
         int menu5(){
             system("clear");
             std::cout << "添加好友" << std::endl;
-            std::cout << "1.请输入您要添加的好友名或id" << std::endl;
-            std::cout << "2.返回上一级" << std::endl;
+            std::cout << "请输入您要添加的好友名或id" << std::endl;
+            std::cout << "0.返回上一级" << std::endl;
             return 5;
         }
         int menu6(){
@@ -274,7 +294,7 @@ class user {
             system("clear");
             std::cout << "1.查看好友信息" << std::endl;
             std::cout << "2.聊天" << std::endl;
-            std::cout << "3.返回上一级" << std::endl;
+            std::cout << "0.返回上一级" << std::endl;
             return 8;
         }
         int menu9(){return 9;}//聊天界面
@@ -287,6 +307,13 @@ class user {
         int menu11(){
             std::cout << "" << std::endl;
             return 11;
+        }
+        void findfriend(){
+            ;//通过传第几个friend在friend表里面存
+        }
+        void addfriend(){
+            std::string friend;
+            std::cin >> friend;
         }
 };
 int connecttoserver(){//检测返回值判断是否退出main函数

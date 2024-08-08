@@ -16,6 +16,7 @@ void client_menu(user new_user){
                 std::cin >> i;
                 if(i == 1) {
                     new_user.menu3();//查看好友
+                    new_user.receivefriend();
                 }
                 else if(i == 2) {
                     new_user.menu4();//添加
@@ -39,7 +40,7 @@ void client_menu(user new_user){
             }
         }
         else if(i == 3){
-            logout();
+            new_user.logout();//注销
         }
     }
 }

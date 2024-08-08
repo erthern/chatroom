@@ -393,14 +393,17 @@ class server {
                 }
                 else {
                     std::string message;
+                    int t=0;
                     for(int i = 0; i < reply->elements;i+=2){
                         redisReply *reply1 = (redisReply*)redisCommand(redis_context,"HGET user:%s status",reply->element[i]);
                         if(reply1 == nullptr) continue;
                         else if(reply1->str == "offline") {
+                            message = std::to_string(t+1)+".";
                             message += reply->element[i]->str;
                             message += "offline";
                             }
                         else if(reply1->str == "online") {
+                            message = std::to_string(t+1)+".";
                             message += reply->element[i]->str;
                             message += "online";
                             }
@@ -409,6 +412,7 @@ class server {
                             continue;
                             }
                         message += "\n";
+                        t++;
                     }
                     ssize_t i = write(client_socket, message.c_str(), message.size());
                     if(i <= 0) std::cout << "write error" << std::endl;
