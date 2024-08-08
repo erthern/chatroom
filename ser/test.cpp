@@ -104,18 +104,18 @@ struct ClientInfo {
 int main() {
     server ser;
     // 创建服务器端套接字
-    ser.setsocket();
-    ser.bindtosocket();
-    ser.listentosocket();
-    ser.sockettoepoll();
+    ser.setsocket(server_socket);
+    ser.bindtosocket(server_addr,client_addr);
+    ser.listentosocket(server_socket);
+    ser.sockettoepoll(server_socket,epoll_fd);
 
     // 连接到 Redis 服务器
-    ser.connecttoredis();
+    ser.connecttoredis(redis_context);
 
-    ser.runserver();
+    ser.runserver(event_count,epoll_fd,redis_context,event,events);
 
-    close(ser.server_socket);
-    close(ser.epoll_fd);
-    redisFree(ser.redis_context);
+    close(server_socket);
+    close(epoll_fd);
+    redisFree(redis_context);
     return 0;
 }

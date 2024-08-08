@@ -1,4 +1,4 @@
-#include <sys/epoll.h>
+#include <sys/epoll.h>//1.改线程池2.聊天
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -50,11 +50,78 @@ const int BUFFER_SIZE = 8192;
 const char* SERVER_IP = "127.0.0.1";
 #define MAX_EVENTS 10
 #define PORT 12345
-int client_socket;
-struct sockaddr_in server_addr;
+int server_socket, client_socket, epoll_fd, event_count;
+struct sockaddr_in server_addr, client_addr;
+socklen_t client_addr_len = sizeof(client_addr);
+struct epoll_event event, events[MAX_EVENTS];
+redisContext* redis_context = redisConnect("127.0.0.1", 6379);
 using json = nlohmann::json;
 //redis 执行命令为 redisCommand(redisContext *c, const char *format, ...)
 //第一个参数代表redisContext结构体指针，第二个参数代表命令
+
+#include <queue>
+#include <functional>
+#include <condition_variable>
+#include <vector>
+#include <thread>
+
+class ThreadPool {
+public:
+    ThreadPool(size_t numThreads);
+    ~ThreadPool();
+
+    template<class F>
+    void enqueue(F&& f);
+
+private:
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+
+    std::mutex queueMutex;
+    std::condition_variable condition;
+    bool stop;
+};
+
+ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
+    for (size_t i = 0; i < numThreads; ++i) {
+        workers.emplace_back([this] {
+            for (;;) {
+                std::function<void()> task;
+
+                {
+                    std::unique_lock<std::mutex> lock(this->queueMutex);
+                    this->condition.wait(lock, [this] { return this->stop || !this->tasks.empty(); });
+                    if (this->stop && this->tasks.empty())
+                        return;
+                    task = std::move(this->tasks.front());
+                    this->tasks.pop();
+                }
+
+                task();
+            }
+        });
+    }
+}
+
+ThreadPool::~ThreadPool() {
+    {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        stop = true;
+    }
+    condition.notify_all();
+    for (std::thread &worker : workers) {
+        worker.join();
+    }
+}
+
+template<class F>
+void ThreadPool::enqueue(F&& f) {
+    {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        tasks.emplace(std::forward<F>(f));
+    }
+    condition.notify_one();
+}
 
 class server {
     public:
@@ -116,13 +183,8 @@ class server {
                 {"touserstatus",touserstatus},
             };
         }
-    int server_socket, client_socket, epoll_fd, event_count;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
-    struct epoll_event event, events[MAX_EVENTS];
-    redisContext* redis_context = redisConnect("127.0.0.1", 6379);
 
-    void connecttoredis(){
+    void connecttoredis(redisContext* redis_context){
         if (redis_context == nullptr || redis_context->err) {
             if (redis_context) {
                 std::cerr << "Error: " << redis_context->errstr << std::endl;
@@ -134,7 +196,7 @@ class server {
         }
     }
 
-    void setsocket(){
+    void setsocket(int server_socket){
         // 创建服务器端套接字
         server_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (server_socket == 0) {
@@ -151,7 +213,7 @@ class server {
         }
     }
     
-    void bindtosocket(){
+    void bindtosocket(struct sockaddr_in server_addr,struct sockaddr_in client_addr){
         // 绑定套接字
         server_addr.sin_family = AF_INET;
         server_addr.sin_addr.s_addr = INADDR_ANY;
@@ -164,7 +226,7 @@ class server {
         }
     }
 
-    void listentosocket(){
+    void listentosocket(int server_socket){
         // 监听连接请求
         if (listen(server_socket, 256) < 0) {
             std::cerr << "Listen failed" << std::endl;
@@ -173,7 +235,7 @@ class server {
         }
     }
 
-    void sockettoepoll(){
+    void sockettoepoll(int server_socket,int epoll_fd){
         // 创建 epoll 实例
         epoll_fd = epoll_create1(0);
         if (epoll_fd == -1) {
@@ -194,7 +256,9 @@ class server {
         std::cout << "Server listening on port " << PORT << std::endl;
     }
 
-    int runserver(){
+    void runserver(int event_count, int epoll_fd, redisContext* redis_context, struct epoll_event event, struct epoll_event *events) {
+        ThreadPool pool(std::thread::hardware_concurrency()); // 创建线程池
+
         while (true) {
             event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
             if (event_count == -1) {
@@ -222,10 +286,10 @@ class server {
 
                     std::cout << "New connection accepted" << std::endl;
                 } else {
-                    // handle_client(events[i].data.fd, redis_context);
-                    std::thread([this, i]() {
-                        handle_client(this->events[i].data.fd, this->redis_context);
-                    }).detach();
+                    // 使用线程池处理客户端请求
+                    pool.enqueue([this, fd = events[i].data.fd, redis_context] {
+                        handle_client(fd, redis_context);
+                    });
                 }
             }
         }
