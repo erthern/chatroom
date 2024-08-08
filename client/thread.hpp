@@ -15,8 +15,10 @@ void client_menu(user new_user){
                 new_user.menushu=new_user.menu2();//登录后界面
                 std::cin >> i;
                 if(i == 1) {
-                    new_user.menushu=new_user.menu3();//查看好友
+                    new_user.menushu=new_user.menu3();//查看好友列表
                     new_user.receivefriend();
+                    std::cout << "请选择您的好友（0退出）" << std::endl;
+                    std::cin >> i;
                 }
                 else if(i == 2) {
                     new_user.menushu=new_user.menu4();//添加
