@@ -24,6 +24,8 @@
 #include <sstream>
 #include <boost/asio.hpp>
 #include <ev.h>
+#include <functional>
+#include <queue>
 using boost::asio::ip::tcp;
 #define MAX_EVENTS 10
 #define PORT 12345
@@ -50,44 +52,36 @@ const int BUFFER_SIZE = 8192;
 const char* SERVER_IP = "127.0.0.1";
 #define MAX_EVENTS 10
 #define PORT 12345
-int server_socket, client_socket, epoll_fd, event_count;
-struct sockaddr_in server_addr, client_addr;
-socklen_t client_addr_len = sizeof(client_addr);
-struct epoll_event event, events[MAX_EVENTS];
-redisContext* redis_context = redisConnect("127.0.0.1", 6379);
+int client_socket;
+struct sockaddr_in server_addr;
 using json = nlohmann::json;
 //redis 执行命令为 redisCommand(redisContext *c, const char *format, ...)
 //第一个参数代表redisContext结构体指针，第二个参数代表命令
 
-#include <queue>
-#include <functional>
-#include <condition_variable>
-#include <vector>
-#include <thread>
-
 class ThreadPool {
 public:
-    ThreadPool(size_t numThreads);
+    ThreadPool(size_t initialThreads);
     ~ThreadPool();
 
     template<class F>
     void enqueue(F&& f);
 
+    void increaseThreads(size_t count);
+
 private:
     std::vector<std::thread> workers;
     std::queue<std::function<void()>> tasks;
-
     std::mutex queueMutex;
     std::condition_variable condition;
-    bool stop;
+    std::atomic<bool> stop;
+    std::atomic<size_t> activeThreads;
 };
 
-ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
-    for (size_t i = 0; i < numThreads; ++i) {
+ThreadPool::ThreadPool(size_t initialThreads) : stop(false), activeThreads(0) {
+    for (size_t i = 0; i < initialThreads; ++i) {
         workers.emplace_back([this] {
             for (;;) {
                 std::function<void()> task;
-
                 {
                     std::unique_lock<std::mutex> lock(this->queueMutex);
                     this->condition.wait(lock, [this] { return this->stop || !this->tasks.empty(); });
@@ -96,8 +90,9 @@ ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
                     task = std::move(this->tasks.front());
                     this->tasks.pop();
                 }
-
+                activeThreads++;
                 task();
+                activeThreads--;
             }
         });
     }
@@ -123,6 +118,27 @@ void ThreadPool::enqueue(F&& f) {
     condition.notify_one();
 }
 
+void ThreadPool::increaseThreads(size_t count) {
+    for (size_t i = 0; i < count; ++i) {
+        workers.emplace_back([this] {
+            for (;;) {
+                std::function<void()> task;
+                {
+                    std::unique_lock<std::mutex> lock(this->queueMutex);
+                    this->condition.wait(lock, [this] { return this->stop || !this->tasks.empty(); });
+                    if (this->stop && this->tasks.empty())
+                        return;
+                    task = std::move(this->tasks.front());
+                    this->tasks.pop();
+                }
+                activeThreads++;
+                task();
+                activeThreads--;
+            }
+        });
+    }
+}
+
 class server {
     public:
         std::string username;
@@ -138,6 +154,7 @@ class server {
         int menushu;
         int signal;//功能信号
         std::unordered_map<std::string,int> id_fd;
+        ThreadPool threadPool;
         json juser{
             {"username",this->username},
             {"password",this->password},
@@ -183,8 +200,13 @@ class server {
                 {"touserstatus",touserstatus},
             };
         }
+    int server_socket, client_socket, epoll_fd, event_count;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    struct epoll_event event, events[MAX_EVENTS];
+    redisContext* redis_context = redisConnect("127.0.0.1", 6379);
 
-    void connecttoredis(redisContext* redis_context){
+    void connecttoredis(){
         if (redis_context == nullptr || redis_context->err) {
             if (redis_context) {
                 std::cerr << "Error: " << redis_context->errstr << std::endl;
@@ -196,7 +218,7 @@ class server {
         }
     }
 
-    void setsocket(int server_socket){
+    void setsocket(){
         // 创建服务器端套接字
         server_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (server_socket == 0) {
@@ -213,7 +235,7 @@ class server {
         }
     }
     
-    void bindtosocket(struct sockaddr_in server_addr,struct sockaddr_in client_addr){
+    void bindtosocket(){
         // 绑定套接字
         server_addr.sin_family = AF_INET;
         server_addr.sin_addr.s_addr = INADDR_ANY;
@@ -226,7 +248,7 @@ class server {
         }
     }
 
-    void listentosocket(int server_socket){
+    void listentosocket(){
         // 监听连接请求
         if (listen(server_socket, 256) < 0) {
             std::cerr << "Listen failed" << std::endl;
@@ -235,7 +257,7 @@ class server {
         }
     }
 
-    void sockettoepoll(int server_socket,int epoll_fd){
+    void sockettoepoll(){
         // 创建 epoll 实例
         epoll_fd = epoll_create1(0);
         if (epoll_fd == -1) {
@@ -255,10 +277,9 @@ class server {
         }
         std::cout << "Server listening on port " << PORT << std::endl;
     }
-
-    void runserver(int event_count, int epoll_fd, redisContext* redis_context, struct epoll_event event, struct epoll_event *events) {
-        ThreadPool pool(std::thread::hardware_concurrency()); // 创建线程池
-
+    server() : threadPool(std::thread::hardware_concurrency()) { // 使用可用的硬件线程数
+    }
+    int runserver(){
         while (true) {
             event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
             if (event_count == -1) {
@@ -286,8 +307,8 @@ class server {
 
                     std::cout << "New connection accepted" << std::endl;
                 } else {
-                    // 使用线程池处理客户端请求
-                    pool.enqueue([this, fd = events[i].data.fd, redis_context] {
+                    // handle_client(events[i].data.fd, redis_context);
+                    threadPool.enqueue([this, fd = events[i].data.fd]() {
                         handle_client(fd, redis_context);
                     });
                 }
@@ -584,10 +605,15 @@ class server {
                 freeReplyObject(hgetallReply);
             }
         }
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, event.data.fd, nullptr) == -1) {
+            perror("epoll_ctl: EPOLL_CTL_DEL");
+            exit(EXIT_FAILURE);
+        }
 
         freeReplyObject(reply);
         return matchingTables;
     }
+    
 };
 
 

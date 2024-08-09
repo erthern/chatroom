@@ -1,0 +1,176 @@
+这段代码实现了一个简单的线程池（ThreadPool），用于管理和调度多个线程执行任务。下面是对代码的逐步解析：
+
+类定义
+class ThreadPool {
+public:
+    ThreadPool(size_t numThreads);
+    ~ThreadPool();
+
+    template<class F>
+    void enqueue(F&& f);
+
+private:
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+
+    std::mutex queueMutex;
+    std::condition_variable condition;
+    bool stop;
+};
+构造函数 ThreadPool(size_t numThreads)：初始化线程池，创建指定数量的工作线程。
+析构函数 ~ThreadPool()：在销毁线程池时，停止所有线程并清理资源。
+enqueue(F&& f)：将任务添加到任务队列中，任务是一个可调用对象（如函数或 lambda 表达式）。
+成员变量
+std::vector<std::thread> workers：存储工作线程。
+std::queue<std::function<void()>> tasks：任务队列，存储待执行的任务。
+std::mutex queueMutex：用于保护任务队列的互斥锁。
+std::condition_variable condition：用于线程间的同步，通知工作线程有新任务可执行。
+bool stop：标志线程池是否应停止。
+构造函数实现
+ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
+    for (size_t i = 0; i < numThreads; ++i) {
+        workers.emplace_back([this] {
+            for (;;) {
+                std::function<void()> task;
+
+                {
+                    std::unique_lock<std::mutex> lock(this->queueMutex);
+                    this->condition.wait(lock, [this] { return this->stop || !this->tasks.empty(); });
+                    if (this->stop && this->tasks.empty())
+                        return;
+                    task = std::move(this->tasks.front());
+                    this->tasks.pop();
+                }
+
+                task();
+            }
+        });
+    }
+}
+线程创建：在构造函数中，创建指定数量的工作线程。每个线程会不断地从任务队列中取出任务并执行。
+任务获取：使用 std::unique_lock 加锁，确保对任务队列的安全访问。
+条件变量：wait 方法会使线程在没有任务时等待，直到有任务可用或线程池被停止。
+任务执行：取出任务并执行，使用 std::move 以避免不必要的复制。
+析构函数实现
+ThreadPool::~ThreadPool() {
+    {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        stop = true;
+    }
+    condition.notify_all();
+    for (std::thread &worker : workers) {
+        worker.join();
+    }
+}
+停止线程池：设置 stop 为 true，并通知所有工作线程。
+等待线程结束：调用 join 等待每个工作线程完成。
+enqueue 方法实现
+template<class F>
+void ThreadPool::enqueue(F&& f) {
+    {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        tasks.emplace(std::forward<F>(f));
+    }
+    condition.notify_one();
+}
+任务入队：将新任务添加到任务队列中。
+通知工作线程：调用 notify_one 通知至少一个工作线程可以开始工作。
+总结
+这个线程池的设计允许用户将任务提交到线程池中，线程池会在后台管理线程并执行这些任务。使用互斥锁和条件变量确保了线程安全和高效的任务调度。
+// 结构体，用于保存客户端信息
+// struct ClientInfo {
+//     int fd;
+//     std::string address;
+// };
+
+// void handle_client(int client_fd) {
+//     char buffer[1024];
+//     memset(buffer, 0, sizeof(buffer));
+//     ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
+//     if (bytes_read > 0) {
+//         std::cout << "Received from client (fd=" << client_fd << "): " << buffer << std::endl;
+//         // 回应客户端
+//         std::string s="   fd= ";
+//         std::string str = std::to_string(client_fd);
+//         s+=str;
+//         std::strcat(buffer,s.c_str());
+//         write(client_fd, buffer, bytes_read+18);
+//     } else if (bytes_read == 0) {
+//         // 客户端关闭连接
+//         close(client_fd);
+//         std::cout << "Client (fd=" << client_fd << ") disconnected." << std::endl;
+//     } else {
+//         perror("read");
+//     }
+// }
+// #include <iostream>
+// #include <string>
+// #include <thread>
+// #include <vector>
+// #include <cstring>
+// #include <unistd.h>
+// #include <arpa/inet.h>
+ 
+// const int PORT = 12345;
+
+// std::vector<int> clients;
+
+// void handle_client(int client_socket) {
+//     char buffer[1024];
+//     int n;
+//     while ((n = read(client_socket, buffer, sizeof(buffer))) > 0) {
+//         buffer[n] = '\0';
+//         std::cout << "Client: " << buffer << std::endl;
+
+//         // Broadcast the message to all clients
+//         for (int client : clients) {
+//             if (client != client_socket) {
+//                 send(client, buffer, n, 0);
+//             }
+//         }
+//     }
+//     close(client_socket);
+// }
+
+// int main() {
+//     int server_socket, client_socket;
+//     struct sockaddr_in server_addr, client_addr;
+//     socklen_t client_len;
+
+//     server_socket = socket(AF_INET, SOCK_STREAM, 0);
+//     if (server_socket < 0) {
+//         std::cerr << "Socket creation failed!" << std::endl;
+//         return -1;
+//     }
+
+//     server_addr.sin_family = AF_INET;
+//     server_addr.sin_addr.s_addr = INADDR_ANY;
+//     server_addr.sin_port = htons(PORT);
+
+//     if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+//         std::cerr << "Bind failed!" << std::endl;
+//         return -1;
+//     }
+
+//     if (listen(server_socket, 5) < 0) {
+//         std::cerr << "Listen failed!" << std::endl;
+//         return -1;
+//     }
+
+//     std::cout << "Server is listening on port " << PORT << std::endl;
+
+//     while (true) {
+//         client_len = sizeof(client_addr);
+//         client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_len);
+//         if (client_socket < 0) {
+//             std::cerr << "Accept failed!" << std::endl;
+//             continue;
+//         }
+
+//         clients.push_back(client_socket);
+//         std::thread(handle_client, client_socket).detach();
+//     }
+
+//     close(server_socket);
+//     return 0;
+// }
