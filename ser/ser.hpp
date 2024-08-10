@@ -1,143 +1,4 @@
-#include <sys/epoll.h>//1.改线程池2.聊天
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <termios.h>
-#include <iostream>
-#include <cstring>
-#include <unordered_map>
-#include <vector> 
-#include <string>
-#include <thread>
-#include <arpa/inet.h>
-#include <cstdlib>
-#include <mutex>
-#include <atomic>
-#include <future>
-#include <condition_variable>
-#include <hiredis/hiredis.h>
-#include <semaphore.h>
-#include <chrono>
-#include <nlohmann/json.hpp>
-#include <curl/curl.h>
-#include <fcntl.h>
-#include <sstream>
-#include <boost/asio.hpp>
-#include <ev.h>
-#include <functional>
-#include <queue>
-using boost::asio::ip::tcp;
-#define MAX_EVENTS 10
-#define PORT 12345
-#define NONE 0 //无操作
-#define SIGNUP 1//注册
-#define LOGIN 2//登录
-#define LOGOUT 3//登出
-#define FRIEND 4//查看好友
-#define BACK 5//回到上一级
-#define NLAHEI 6//不拉黑
-#define LAHEI 7//拉黑
-#define GROUP 8//查看群聊
-#define ADDFRIEND 9//添加好友
-#define DELFRIEND 10//删除好友
-#define Blacklist 11//拉入黑名单
-#define HISRORY 12//查看历史记录
-#define ADDGROUP 13//添加群聊
-#define DELGROUP 14//删除群聊
-#define QTGROUP 15//退出群聊
-#define CHAT 16//聊天
-#define PRIVATECHAT 17//进入私聊
-#define GROUPCHAT 18//进入群聊
-const int BUFFER_SIZE = 8192;
-const char* SERVER_IP = "127.0.0.1";
-#define MAX_EVENTS 10
-#define PORT 12345
-int client_socket;
-struct sockaddr_in server_addr;
-using json = nlohmann::json;
-//redis 执行命令为 redisCommand(redisContext *c, const char *format, ...)
-//第一个参数代表redisContext结构体指针，第二个参数代表命令
-
-class ThreadPool {
-public:
-    ThreadPool(size_t initialThreads);
-    ~ThreadPool();
-
-    template<class F>
-    void enqueue(F&& f);
-
-    void increaseThreads(size_t count);
-
-private:
-    std::vector<std::thread> workers;
-    std::queue<std::function<void()>> tasks;
-    std::mutex queueMutex;
-    std::condition_variable condition;
-    std::atomic<bool> stop;
-    std::atomic<size_t> activeThreads;
-};
-
-ThreadPool::ThreadPool(size_t initialThreads) : stop(false), activeThreads(0) {
-    for (size_t i = 0; i < initialThreads; ++i) {
-        workers.emplace_back([this] {
-            for (;;) {
-                std::function<void()> task;
-                {
-                    std::unique_lock<std::mutex> lock(this->queueMutex);
-                    this->condition.wait(lock, [this] { return this->stop || !this->tasks.empty(); });
-                    if (this->stop && this->tasks.empty())
-                        return;
-                    task = std::move(this->tasks.front());
-                    this->tasks.pop();
-                }
-                activeThreads++;
-                task();
-                activeThreads--;
-            }
-        });
-    }
-}
-
-ThreadPool::~ThreadPool() {
-    {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        stop = true;
-    }
-    condition.notify_all();
-    for (std::thread &worker : workers) {
-        worker.join();
-    }
-}
-
-template<class F>
-void ThreadPool::enqueue(F&& f) {
-    {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        tasks.emplace(std::forward<F>(f));
-    }
-    condition.notify_one();
-}
-
-void ThreadPool::increaseThreads(size_t count) {
-    for (size_t i = 0; i < count; ++i) {
-        workers.emplace_back([this] {
-            for (;;) {
-                std::function<void()> task;
-                {
-                    std::unique_lock<std::mutex> lock(this->queueMutex);
-                    this->condition.wait(lock, [this] { return this->stop || !this->tasks.empty(); });
-                    if (this->stop && this->tasks.empty())
-                        return;
-                    task = std::move(this->tasks.front());
-                    this->tasks.pop();
-                }
-                activeThreads++;
-                task();
-                activeThreads--;
-            }
-        });
-    }
-}
+#include "/home/zyc/桌面/chatroom/ser/threadpool.hpp"
 
 class server {
     public:
@@ -154,7 +15,8 @@ class server {
         int menushu;
         int signal;//功能信号
         std::unordered_map<std::string,int> id_fd;
-        ThreadPool threadPool;
+        ThreadPool pool (10);
+        pool.init();
         json juser{
             {"username",this->username},
             {"password",this->password},
@@ -277,8 +139,7 @@ class server {
         }
         std::cout << "Server listening on port " << PORT << std::endl;
     }
-    server() : threadPool(std::thread::hardware_concurrency()) { // 使用可用的硬件线程数
-    }
+
     int runserver(){
         while (true) {
             event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -308,9 +169,9 @@ class server {
                     std::cout << "New connection accepted" << std::endl;
                 } else {
                     // handle_client(events[i].data.fd, redis_context);
-                    threadPool.enqueue([this, fd = events[i].data.fd]() {
-                        handle_client(fd, redis_context);
-                    });
+                    std::thread([this, i]() {
+                        handle_client(this->events[i].data.fd, this->redis_context);
+                    }).detach();
                 }
             }
         }
@@ -326,11 +187,12 @@ class server {
 
     std::string data(buffer, bytes_received);
     std::cout << "Received data: " << data << std::endl;
-
+    auto task = [this,client_socket, data,bytes_received,redis_context,buffer](){
     try {
         json received_json = json::parse(data);
         std::cout << "Parsed JSON: " << received_json.dump(4) << std::endl;
         int signal = received_json["signal"];
+        std::cout << "Got signal: " << signal << std::endl;
         if(signal == SIGNUP){
             if (received_json.contains("username")) {
                 std::string username = received_json["username"];
@@ -354,7 +216,7 @@ class server {
                         que = received_json["question"];
                         ans = received_json["answer"];
                         id = generateID();
-                        redisCommand(redis_context, "HSET user:%s username %s password %s status %s question %s answer %s id %s",
+                        redisCommand(redis_context, "HMSET user:%s username %s password %s status %s question %s answer %s id %s",
                                      username.c_str(), username.c_str(), password.c_str(), status.c_str(), que.c_str(), ans.c_str(),id.c_str());
                         std::cout << "User " << username << " registered successfully." << std::endl;
                         std::string message;
@@ -372,6 +234,7 @@ class server {
             if (received_json.contains("username")) {
                 std::string username = received_json["username"];
                 std::string password = received_json["password"];
+                std::cout << "password " << password << std::endl;
                 redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
             
                 if (reply == nullptr) {
@@ -379,18 +242,24 @@ class server {
                 } else {
                  if (reply->integer == 1) {
                         redisReply* reply1 = (redisReply*)redisCommand(redis_context, "HGET user:%s password", username.c_str());
+                        std::cout << reply1->str << std::endl;
                         std::cout << "User " << username << " is already registered." << std::endl;
                         if(reply1->str==password){
                             redisReply* reply2 =(redisReply*)redisCommand(redis_context, "HGET user:%s status",username.c_str());
-                            if(reply2->str=="offline")
+                            std::cout << reply2->str << std::endl;
+                            std::string checkstatus = "offline";
+                            if(reply2->str==checkstatus)
                             {
-                                redisCommand(redis_context, "HSET user:%s status online", username.c_str());
+                                status = "online";
+                                redisReply* reply3=(redisReply*)redisCommand(redis_context, "HSET user:%s status %s", username.c_str(),status.c_str());
                                 std::string message;
                                 message += "User ";
                                 message += username;
                                 message += " is online";
                                 ssize_t i = write(client_socket, message.c_str(), message.size());
                                 if(i <= 0) std::cout << "write error" << std::endl;
+                                redisReply* reply2 =(redisReply*)redisCommand(redis_context, "HGET user:%s status",username.c_str());
+                                std::cout << reply2->str << std::endl;
                             }
                             else {
                                 std::string message;
@@ -545,10 +414,31 @@ class server {
                 }
             }
         }
+        // 重新添加到epoll
+                    if (fcntl(client_socket, F_GETFD) != -1) 
+                    {
+                        // Re-add to epoll
+                        struct epoll_event event = {};
+                        event.events = EPOLLIN;
+                        event.data.fd = client_socket;
+
+                        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_socket, &event) == -1) 
+                        {
+                            perror("Epoll_ctl ADD failed");
+                        }
+                    } 
+                    else 
+                    {
+                        std::cerr << "File descriptor is no longer valid: " << client_socket << std::endl;
+                        //handleClientRequest(curfd);
+                    }
     }
     catch (json::parse_error& e) {
             std::cerr << "JSON parse error: " << e.what() << std::endl;
+            close(client_socket); // Close the file descriptor
+            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_socket, nullptr); 
         }
+    };
 }
     void sendtoclient(int client_socket){}
     void receivefromclient(int client_socket){}
@@ -605,15 +495,9 @@ class server {
                 freeReplyObject(hgetallReply);
             }
         }
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, event.data.fd, nullptr) == -1) {
-            perror("epoll_ctl: EPOLL_CTL_DEL");
-            exit(EXIT_FAILURE);
-        }
 
         freeReplyObject(reply);
         return matchingTables;
     }
-    
 };
-
 
