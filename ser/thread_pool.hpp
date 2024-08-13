@@ -1,6 +1,6 @@
 #include "../ser/head.hpp"
-#ifndef THREAD_POOL_H
-#define THREAD_POOL_H
+// #ifndef THREAD_POOL_H
+// #define THREAD_POOL_H
 template <typename T>
 class SafeQueue
 {
@@ -49,6 +49,7 @@ public:
         return true;
     }
 };
+
 class ThreadPool
 {
 private:
@@ -112,7 +113,6 @@ public:
     }
 
     ThreadPool(const ThreadPool &) = delete;
-
     ThreadPool(ThreadPool &&) = delete;
 
     ThreadPool &operator=(const ThreadPool &) = delete;
@@ -152,21 +152,17 @@ public:
 
         // Encapsulate it into a shared pointer in order to be able to copy construct
         auto task_ptr = std::make_shared<std::packaged_task<decltype(f(args...))()>>(func);
-
         // Warp packaged task into void function
         std::function<void()> warpper_func = [task_ptr]()
         {
             (*task_ptr)();
         };
-
         // 队列通用安全封包函数，并压入安全队列
         m_queue.enqueue(warpper_func);
-
         // 唤醒一个等待中的线程
         m_conditional_lock.notify_one();
-
         // 返回先前注册的任务指针
         return task_ptr->get_future();
     }
 };
-#endif
+// #endif

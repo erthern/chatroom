@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     int i = connecttoserver();
     if(i == -1) {close(client_socket);return -1;}
     std::string message;
-    new_user.menu();
+    client_menu(new_user);
 
     close(client_socket);
     return 0;

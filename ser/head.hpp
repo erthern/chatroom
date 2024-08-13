@@ -17,6 +17,8 @@
 #include <future>
 #include <condition_variable>
 #include <hiredis/hiredis.h>
+#include <hiredis/async.h>
+// #include <hiredis/adapters/libevent.h>
 #include <semaphore.h>
 #include <chrono>
 #include <nlohmann/json.hpp>
@@ -34,7 +36,8 @@ using boost::asio::ip::tcp;
 #define NONE 0 //无操作
 #define SIGNUP 1//注册
 #define LOGIN 2//登录
-#define LOGOUT 3//登出
+#define DEREGISTER 3//注销
+#define LOGOUT 19//登出
 #define FRIEND 4//查看好友
 #define BACK 5//回到上一级
 #define NLAHEI 6//不拉黑
@@ -50,6 +53,8 @@ using boost::asio::ip::tcp;
 #define CHAT 16//聊天
 #define PRIVATECHAT 17//进入私聊
 #define GROUPCHAT 18//进入群聊
+#define LOGOUT 19//退出
+#define DISCONNECT 20//断开连接
 const int BUFFER_SIZE = 8192;
 const char* SERVER_IP = "127.0.0.1";
 #define MAX_EVENTS 10

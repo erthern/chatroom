@@ -1,4 +1,4 @@
-#include "/home/zyc/桌面/chatroom/ser/threadpool.hpp"
+#include "../ser/thread_pool.hpp"
 
 class server {
     public:
@@ -15,8 +15,14 @@ class server {
         int menushu;
         int signal;//功能信号
         std::unordered_map<std::string,int> id_fd;
-        ThreadPool pool (10);
-        pool.init();
+        ThreadPool m_pool;
+        server(int port = PORT)
+            : m_pool(10) 
+        {
+            m_pool.init(); // Initialize thread pool
+        }
+        // ThreadPool m_pool;
+        // m_pool.init();
         json juser{
             {"username",this->username},
             {"password",this->password},
@@ -139,6 +145,14 @@ class server {
         }
         std::cout << "Server listening on port " << PORT << std::endl;
     }
+    int find_fd(std::string id)
+    {
+         auto it = id_fd.find(id);
+        if (it != id_fd.end()) {
+            return it->second;
+        }
+        return -1; 
+    }
 
     int runserver(){
         while (true) {
@@ -169,9 +183,7 @@ class server {
                     std::cout << "New connection accepted" << std::endl;
                 } else {
                     // handle_client(events[i].data.fd, redis_context);
-                    std::thread([this, i]() {
-                        handle_client(this->events[i].data.fd, this->redis_context);
-                    }).detach();
+                    handle_client(this->events[i].data.fd, this->redis_context);
                 }
             }
         }
@@ -189,6 +201,18 @@ class server {
     std::cout << "Received data: " << data << std::endl;
     auto task = [this,client_socket, data,bytes_received,redis_context,buffer](){
     try {
+        struct epoll_event temp;
+            temp.events = EPOLLIN | EPOLLET;
+            temp.data.fd = client_socket;
+          
+            // 从epoll中删除当前文件描述符
+            //确保将当次的请求处理完毕，否则将会将业务逻辑与epoll事件循环混杂在一起，导致逻辑混乱
+            //并且json解析会出错，导致程序崩溃
+            if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_socket, &temp) == -1) 
+            {
+                perror("Epoll_ctl-DEL failed");
+                exit(EXIT_FAILURE);
+            }
         json received_json = json::parse(data);
         std::cout << "Parsed JSON: " << received_json.dump(4) << std::endl;
         int signal = received_json["signal"];
@@ -232,6 +256,10 @@ class server {
         }
         else if(signal == LOGIN)  {
             if (received_json.contains("username")) {
+                std::string id;
+                redisReply* replyid =(redisReply*)redisCommand(redis_context,"HGET user:%s id",username.c_str());
+                id=replyid->str;
+                id_fd.insert(std::make_pair(id,client_socket));
                 std::string username = received_json["username"];
                 std::string password = received_json["password"];
                 std::cout << "password " << password << std::endl;
@@ -289,7 +317,7 @@ class server {
                 }
             }
         }
-        else if(signal == LOGOUT){
+        else if(signal == DEREGISTER){
             if (received_json.contains("username")) {
                 std::string username = received_json["username"];
                 std::string password = received_json["password"];
@@ -414,6 +442,45 @@ class server {
                 }
             }
         }
+        else if(signal == LOGOUT){
+            if (received_json.contains("username")) {
+                std::string username = received_json["username"];
+                redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
+            
+                if (reply == nullptr) {
+                    std::cerr << "Redis command failed" << std::endl;
+                } else {
+                 if (reply->integer == 1) {
+                        std::string status = "offline";
+                        redisReply* reply1 = (redisReply*)redisCommand(redis_context, "HSET user:%s status %s", username.c_str(),status.c_str());
+                        std::cout << reply1->str << std::endl;
+                        std::cout << "User " << username << " is already registered." << std::endl;
+                        std::string message;
+                        message += "User ";
+                        message += username;
+                        message += " is logout.";
+                        ssize_t i = write(client_socket, message.c_str(), message.size());
+                        if(i <= 0) std::cout << "write error" << std::endl;
+                    }
+                    freeReplyObject(reply);
+                }
+            }
+        }
+        else if(signal == DISCONNECT){
+            std::cout << "Client disconnected1: " << client_socket << std::endl;
+            epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_socket, nullptr); // Remove from epoll
+        
+            for(auto it = id_fd.begin(); it != id_fd.end(); it++)
+            {
+                if(it->second == client_socket)
+                {
+                    std::cout << it->first << std::endl;
+                    id_fd.erase(it);
+                    break;
+                }
+            }
+        close(client_socket);
+        }
         // 重新添加到epoll
                     if (fcntl(client_socket, F_GETFD) != -1) 
                     {
@@ -439,6 +506,7 @@ class server {
             epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_socket, nullptr); 
         }
     };
+     m_pool.submit(task);
 }
     void sendtoclient(int client_socket){}
     void receivefromclient(int client_socket){}

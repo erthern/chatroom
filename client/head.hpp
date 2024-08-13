@@ -16,6 +16,8 @@
 #include <future>
 #include <condition_variable>
 #include <hiredis/hiredis.h>
+#include <hiredis/async.h>
+// #include <hiredis/adapters/libevent.h>
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
 #include <fcntl.h>
@@ -27,7 +29,7 @@
 #define MAX_EVENTS 10
 #define SIGNUP 1//注册
 #define LOGIN 2//登录
-#define LOGOUT 3//注销
+#define DEREGISTER 3//注销
 #define FRIEND 4//查看好友
 #define BACK 5//回到上一级
 #define NLAHEI 6//不拉黑
@@ -43,6 +45,8 @@
 #define CHAT 16//聊天
 #define PRIVATECHAT 17//进入私聊
 #define GROUPCHAT 18//进入群聊
+#define LOGOUT 19//退出
+#define DISCONNECT 20//断开连接
 using boost::asio::ip::tcp;
 const int PORT = 12345;
 const int BUFFER_SIZE = 4096;
@@ -196,13 +200,20 @@ class user {
                 return;
         }
         void logout(){
+                this->signal=LOGOUT;
+                juser=this->toJson();
+                senduser();
+                receiveuser();
+                return;
+        }
+        void Deregister(){
                 system("clear");
                 std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
                 std::cout << "请输入用户名：" << std::endl;
                 std::getline(std::cin,this->username);
                 std::cout << "请输入密码：" << std::endl;
                 this->password = getHiddenPassword();
-                this->signal=LOGOUT;
+                this->signal=DEREGISTER;
                 juser=this->toJson();
                 senduser();
                 receiveuser();
@@ -263,12 +274,10 @@ class user {
             return 2;
         }
         int menu3(){//好友群聊列表选择要添加的好友
-            system("clear");
             std::cout << "好友群聊如下：" << std::endl;
             return 3;
         }
         int menu4(){//添加好友、群聊，创建群聊
-            system("clear");
             std::cout << "您要添加好友或群聊，还是创建群聊？" << std::endl;
             std::cout << "        1.添加好友" << std::endl;
             std::cout << "        2.添加群聊" << std::endl;
@@ -277,28 +286,24 @@ class user {
             return 4;
         }
         int menu5(){
-            system("clear");
             std::cout << "添加好友" << std::endl;
             std::cout << "请输入您要添加的好友名或id" << std::endl;
             std::cout << "0.返回上一级" << std::endl;
             return 5;
         }
         int menu6(){
-            system("clear");
             std::cout << "添加群聊" << std::endl; 
             std::cout << "请输入您要添加的群聊名或id" << std::endl;
             std::cout << "0.返回上一级" << std::endl;
             return 6;
         }
         int menu7(){
-            system("clear");
             std::cout << "创建群聊" << std::endl;
             std::cout << "请输入您要创建的群聊名" << std::endl;
             std::cout << "0.返回上一级" << std::endl;
             return 7;
         }
         int menu8(){
-            system("clear");
             std::cout << "1.查看好友信息" << std::endl;
             std::cout << "2.聊天" << std::endl;
             std::cout << "0.返回上一级" << std::endl;
@@ -306,7 +311,6 @@ class user {
         }
         int menu9(){return 9;}//聊天界面
         int menu10(){
-            system("clear");
             std::cout << "请输入您要删除的好友名或id或者您要退出的群聊名或id" << std::endl;
             std::cout << "0.返回上一级" << std::endl;
             return 10;
@@ -319,13 +323,18 @@ class user {
             ;//通过传第几个friend在friend表里面存
         }
         void addfriend(){
-            std::string friend;
-            std::cin >> friend;
-            signal = ADDFRIEND;
-            id = friend;
-            tousername = friend;
-            touserid = friend;
+            std::string friendname;
+            std::cin >> friendname;
+            this->signal = ADDFRIEND;
+            tousername = friendname;
+            touserid = friendname;
             userrequest = touserrequest();
+            ssize_t sent_bytes = send(client_socket, userrequest.dump().c_str(),userrequest.dump().length(),0);
+            if(sent_bytes < 0) return;
+        }
+        void disconnect(){
+            this->signal = DISCONNECT;
+            juser = toJson();
             ssize_t sent_bytes = send(client_socket, userrequest.dump().c_str(),userrequest.dump().length(),0);
             if(sent_bytes < 0) return;
         }
