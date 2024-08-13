@@ -17,7 +17,7 @@
 #include <condition_variable>
 #include <hiredis/hiredis.h>
 #include <hiredis/async.h>
-// #include <hiredis/adapters/libevent.h>
+#include <hiredis/adapters/libevent.h>
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
 #include <fcntl.h>
@@ -25,7 +25,7 @@
 #include <chrono>
 #include <sstream>
 #include <boost/asio.hpp>
-#include <ev.h>
+// #include <ev.h>
 #define MAX_EVENTS 10
 #define SIGNUP 1//注册
 #define LOGIN 2//登录
@@ -55,6 +55,7 @@ int client_socket;
 struct sockaddr_in server_addr;
 using json = nlohmann::json;
 std::mutex mtxsignal;//设置为线程间通信信号
+char buffer[BUFFER_SIZE]={0};
 //redis 执行命令为 redisCommand(redisContext *c, const char *format, ...)
 //第一个参数代表redisContext结构体指针，第二个参数代表命令
 class user {
@@ -117,29 +118,6 @@ class user {
                 {"touserstatus",touserstatus},
             };
         }
-        void menu(){
-            while(1){
-            menu1();
-            int i;
-            std::cin >> i;
-            if(i == 4) break;
-            else if(i == 2) {
-                login();
-                senduser();
-                receiveuser();//增加
-                }
-            else if(i == 1) {
-                signup();
-                senduser();
-                receiveuser();
-                }
-            else if(i == 3){
-                logout();
-                senduser();
-                receiveuser();
-            }
-            }
-        }
         void signup(){
                 system("clear");
                 std::cout << "Enter your username:" << std::endl;
@@ -162,9 +140,8 @@ class user {
             send(client_socket,str.c_str(),str.length(),0);
             std::cout << "send successfully" << std::endl;
         }
-        void receiveuser(){
+        char* receiveuser(){
             // 接收服务器发送的数据
-            char buffer[BUFFER_SIZE]={0};
             ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
             if (bytes_received < 0) {
                 std::cerr << "Receive failed" << std::endl;
@@ -173,6 +150,7 @@ class user {
                 buffer[bytes_received] = '\0'; // 确保缓冲区以null字符结尾
                 std::cout << "Message from server: " << buffer << std::endl;
             }
+            return buffer;
         }
         void receivefriend(){
             // 接收服务器发送的数据
@@ -186,7 +164,7 @@ class user {
                 std::cout << buffer << std::endl;
             }
         }
-        void login(){
+        int login(){
                 system("clear");
                 std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Clear input buffer
                 std::cout << "请输入用户名：" << std::endl;
@@ -196,11 +174,16 @@ class user {
                 this->signal=LOGIN;
                 juser=this->toJson();
                 senduser();
-                receiveuser();
-                return;
+                char *rvbuffer=receiveuser();
+                std::cout << rvbuffer << std::endl;
+                std::string check = "User is online.";
+                std::cout << check <<std::endl;
+                if(rvbuffer!=check) return 0;
+                return 1;
         }
         void logout(){
                 this->signal=LOGOUT;
+                this->status="offline";
                 juser=this->toJson();
                 senduser();
                 receiveuser();
@@ -260,7 +243,7 @@ class user {
             return 1;
         }
         int menu2(){
-            system("clear");
+            // system("clear");
             std::cout << "********************************" << std::endl;
             std::cout << "           MY CHATROOM" << std::endl;
             std::cout << "          1.查看好友、群聊" << std::endl;
@@ -335,7 +318,7 @@ class user {
         void disconnect(){
             this->signal = DISCONNECT;
             juser = toJson();
-            ssize_t sent_bytes = send(client_socket, userrequest.dump().c_str(),userrequest.dump().length(),0);
+            ssize_t sent_bytes = send(client_socket, juser.dump().c_str(),juser.dump().length(),0);
             if(sent_bytes < 0) return;
         }
 };

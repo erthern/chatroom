@@ -18,18 +18,19 @@
 #include <condition_variable>
 #include <hiredis/hiredis.h>
 #include <hiredis/async.h>
-// #include <hiredis/adapters/libevent.h>
+#include <hiredis/adapters/libevent.h>
 #include <semaphore.h>
 #include <chrono>
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
 #include <fcntl.h>
+#include <exception>
 #include <sstream>
 #include <utility>
 #include <boost/asio.hpp>
 #include <queue>
 #include <utility>
-#include <ev.h>
+// #include <ev.h>
 using boost::asio::ip::tcp;
 #define MAX_EVENTS 10
 #define PORT 12345

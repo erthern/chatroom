@@ -13,7 +13,8 @@ void client_menu(user new_user){
             new_user.signup();
         }
         else if(i == 2) {
-            new_user.login();//增加
+            int check=new_user.login();//增加
+            if(check == 0) {continue;}
             while(1){
                 new_user.menushu=new_user.menu2();//登录后界面
                 std::cin >> i;

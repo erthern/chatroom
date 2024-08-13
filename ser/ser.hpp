@@ -188,7 +188,7 @@ class server {
             }
         }
     }
-    void handle_client(int client_socket, redisContext* redis_context) {
+void handle_client(int client_socket, redisContext* redis_context) {
     char buffer[BUFFER_SIZE] = {0};
     int bytes_received = read(client_socket, buffer, BUFFER_SIZE);
     
@@ -199,9 +199,8 @@ class server {
 
     std::string data(buffer, bytes_received);
     std::cout << "Received data: " << data << std::endl;
-    auto task = [this,client_socket, data,bytes_received,redis_context,buffer](){
     try {
-        struct epoll_event temp;
+            struct epoll_event temp;
             temp.events = EPOLLIN | EPOLLET;
             temp.data.fd = client_socket;
           
@@ -217,203 +216,29 @@ class server {
         std::cout << "Parsed JSON: " << received_json.dump(4) << std::endl;
         int signal = received_json["signal"];
         std::cout << "Got signal: " << signal << std::endl;
-        if(signal == SIGNUP){
-            if (received_json.contains("username")) {
-                std::string username = received_json["username"];
-                redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
-            
-                if (reply == nullptr) {
-                    std::cerr << "Redis command failed" << std::endl;
-                } else {
-                 if (reply->integer == 1) {
-                        std::cout << "User " << username << " is already registered." << std::endl;
-                        std::string message;
-                        message += "User ";
-                        message += username;
-                        message += " already registered";
-                        ssize_t i = write(client_socket, message.c_str(), message.size());
-                        if(i <= 0) std::cout << "write error" << std::endl;
-                    } else {
-                        // 未注册用户，存储信息
-                        password = received_json["password"];
-                        status = received_json["status"];
-                        que = received_json["question"];
-                        ans = received_json["answer"];
-                        id = generateID();
-                        redisCommand(redis_context, "HMSET user:%s username %s password %s status %s question %s answer %s id %s",
-                                     username.c_str(), username.c_str(), password.c_str(), status.c_str(), que.c_str(), ans.c_str(),id.c_str());
-                        std::cout << "User " << username << " registered successfully." << std::endl;
-                        std::string message;
-                        message += "User ";
-                        message += username;
-                        message += " is already registered successfully.";
-                        ssize_t i = write(client_socket, message.c_str(), message.size());
-                        if(i <= 0) std::cout << "write error" << std::endl;
-                    }
-                    freeReplyObject(reply);
-                }
-            }
+        auto task = [this,client_socket, data,bytes_received,redis_context,buffer,signal,received_json](){
+            std::cout << signal << std::endl;
+            try{
+            if(signal == SIGNUP){
+            signup(received_json);
         }
-        else if(signal == LOGIN)  {
-            if (received_json.contains("username")) {
-                std::string id;
-                redisReply* replyid =(redisReply*)redisCommand(redis_context,"HGET user:%s id",username.c_str());
-                id=replyid->str;
-                id_fd.insert(std::make_pair(id,client_socket));
-                std::string username = received_json["username"];
-                std::string password = received_json["password"];
-                std::cout << "password " << password << std::endl;
-                redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
-            
-                if (reply == nullptr) {
-                    std::cerr << "Redis command failed" << std::endl;
-                } else {
-                 if (reply->integer == 1) {
-                        redisReply* reply1 = (redisReply*)redisCommand(redis_context, "HGET user:%s password", username.c_str());
-                        std::cout << reply1->str << std::endl;
-                        std::cout << "User " << username << " is already registered." << std::endl;
-                        if(reply1->str==password){
-                            redisReply* reply2 =(redisReply*)redisCommand(redis_context, "HGET user:%s status",username.c_str());
-                            std::cout << reply2->str << std::endl;
-                            std::string checkstatus = "offline";
-                            if(reply2->str==checkstatus)
-                            {
-                                status = "online";
-                                redisReply* reply3=(redisReply*)redisCommand(redis_context, "HSET user:%s status %s", username.c_str(),status.c_str());
-                                std::string message;
-                                message += "User ";
-                                message += username;
-                                message += " is online";
-                                ssize_t i = write(client_socket, message.c_str(), message.size());
-                                if(i <= 0) std::cout << "write error" << std::endl;
-                                redisReply* reply2 =(redisReply*)redisCommand(redis_context, "HGET user:%s status",username.c_str());
-                                std::cout << reply2->str << std::endl;
-                            }
-                            else {
-                                std::string message;
-                                message += "User ";
-                                message += username;
-                                message += " is online";
-                                ssize_t i = write(client_socket, message.c_str(), message.size());
-                                if(i <= 0) std::cout << "write error" << std::endl;
-                            }
-                        }
-                        else{std::string message;
-                        message += "User ";
-                        message += username;
-                        message += "'s password is wrong.";
-                        ssize_t i = write(client_socket, message.c_str(), message.size());
-                        if(i <= 0) std::cout << "write error" << std::endl;}
-                    } else {
-                        // 未注册用户
-                        std::string message;
-                        message += "User ";
-                        message += username;
-                        message += " is never registered.";
-                        ssize_t i = write(client_socket, message.c_str(), message.size());
-                        if(i <= 0) std::cout << "write error" << std::endl;
-                    }
-                    freeReplyObject(reply);
-                }
-            }
+            else if(signal == LOGIN)  {
+            std::cout << signal << std::endl;
+            login(received_json);
+            // std::string id ;
+            // std::cout << id << std::endl;
+            // redisReply* replyid = (redisReply*)redisCommand(redis_context, "HGET user:%s id",username.c_str());
+            // id = replyid->str;
+            // id_fd.insert(std::make_pair(id,client_socket));
+            // freeReplyObject(replyid);
         }
         else if(signal == DEREGISTER){
-            if (received_json.contains("username")) {
-                std::string username = received_json["username"];
-                std::string password = received_json["password"];
-                redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
-            
-                if (reply == nullptr) {
-                    std::cerr << "Redis command failed" << std::endl;
-                } else {
-                 if (reply->integer == 1) {
-                        redisReply* reply1 = (redisReply*)redisCommand(redis_context, "HGET user:%s password", username.c_str());
-                        std::cout << "User " << username << " is already registered." << std::endl;
-                        if(reply1->str==password){
-                            redisReply* reply2 =(redisReply*)redisCommand(redis_context, "DEL user:%s ",username.c_str());
-                                std::string message;
-                                message += "User ";
-                                message += username;
-                                message += " is deleted.";
-                                ssize_t i = write(client_socket, message.c_str(), message.size());
-                                if(i <= 0) std::cout << "write error" << std::endl;
-                        }
-                        else{
-                            std::string message;
-                            message += "User ";
-                            message += username;
-                            message += "'s password is wrong.";
-                            ssize_t i = write(client_socket, message.c_str(), message.size());
-                            if(i <= 0) std::cout << "write error" << std::endl;}
-                    } else {
-                        // 未注册用户
-                        std::string message;
-                        message += "User ";
-                        message += username;
-                        message += " is never registered.";
-                        ssize_t i = write(client_socket, message.c_str(), message.size());
-                        if(i <= 0) std::cout << "write error" << std::endl;
-                    }
-                    freeReplyObject(reply);
-                }
-            }
+            deregister(received_json);
         }
-        else if(signal == FRIEND) {
-            std::string username = received_json["username"];
-            redisReply* reply = (redisReply*)redisCommand(redis_context, "EXISTS user:%s'sfriends", username.c_str());
-            if (reply == nullptr) {
-                std::cerr << "Redis command failed" << std::endl;
-            }
-            else if(reply->integer == 0){
-                reply = (redisReply*)redisCommand(redis_context, "ZADD user:%s'sfriends",username.c_str());
-                if (reply == nullptr) {
-                    printf("Redis command error\n");
-                    return ;
-                }
-            }
-            else {
-                reply = (redisReply*)redisCommand(redis_context, "ZRANGE firend:%s 0 -1",username.c_str());
-                if(reply == nullptr){
-                    printf("Redis command error\n");
-                    return ;
-                }
-                else if(reply->elements==0){
-                    std::string message;
-                    message += "User ";
-                    message += username;
-                    message += " has no friends.";
-                    ssize_t i = write(client_socket, message.c_str(), message.size());
-                    if(i <= 0) std::cout << "write error" << std::endl;
-                }
-                else {
-                    std::string message;
-                    int t=0;
-                    for(int i = 0; i < reply->elements;i+=2){
-                        redisReply *reply1 = (redisReply*)redisCommand(redis_context,"HGET user:%s status",reply->element[i]);
-                        if(reply1 == nullptr) continue;
-                        else if(reply1->str == "offline") {
-                            message = std::to_string(t+1)+".";
-                            message += reply->element[i]->str;
-                            message += "offline";
-                            }
-                        else if(reply1->str == "online") {
-                            message = std::to_string(t+1)+".";
-                            message += reply->element[i]->str;
-                            message += "online";
-                            }
-                        else{
-                            std::cerr << "no this friend.";
-                            continue;
-                            }
-                        message += "\n";
-                        t++;
-                    }
-                    ssize_t i = write(client_socket, message.c_str(), message.size());
-                    if(i <= 0) std::cout << "write error" << std::endl;
-                }
-            }
+            else if(signal == FRIEND) {
+            myfriends(received_json);
         }
-        else if(signal == ADDFRIEND){
+            else if(signal == ADDFRIEND){
             std::string username = received_json["username"];
             std::string tousername = received_json["tousername"];
             std::string touserid = received_json["touserid"];
@@ -442,7 +267,7 @@ class server {
                 }
             }
         }
-        else if(signal == LOGOUT){
+            else if(signal == LOGOUT){
             if (received_json.contains("username")) {
                 std::string username = received_json["username"];
                 redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
@@ -499,15 +324,227 @@ class server {
                         std::cerr << "File descriptor is no longer valid: " << client_socket << std::endl;
                         //handleClientRequest(curfd);
                     }
+            }
+            catch (const std::exception &e) {
+                std::cerr << "JSON parse error: " << e.what() << std::endl;
+                close(client_socket); // Close the file descriptor
+                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_socket, nullptr); 
+            }
+        };
+        m_pool.submit(task);
     }
-    catch (json::parse_error& e) {
+    catch (const std::exception &e) {
             std::cerr << "JSON parse error: " << e.what() << std::endl;
             close(client_socket); // Close the file descriptor
             epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_socket, nullptr); 
         }
-    };
-     m_pool.submit(task);
 }
+    void signup(json received_json){
+        if (received_json.contains("username")) {
+                std::string username = received_json["username"];
+                redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
+            
+                if (reply == nullptr) {
+                    std::cerr << "Redis command failed" << std::endl;
+                } else {
+                 if (reply->integer == 1) {
+                        std::cout << "User " << username << " is already registered." << std::endl;
+                        std::string message;
+                        message += "User ";
+                        message += username;
+                        message += " already registered";
+                        ssize_t i = write(client_socket, message.c_str(), message.size());
+                        if(i <= 0) std::cout << "write error" << std::endl;
+                    } else {
+                        // 未注册用户，存储信息
+                        password = received_json["password"];
+                        status = received_json["status"];
+                        que = received_json["question"];
+                        ans = received_json["answer"];
+                        id = generateID();
+                        redisCommand(redis_context, "HMSET user:%s username %s password %s status %s question %s answer %s id %s",
+                                     username.c_str(), username.c_str(), password.c_str(), status.c_str(), que.c_str(), ans.c_str(),id.c_str());
+                        std::cout << "User " << username << " registered successfully." << std::endl;
+                        std::string message;
+                        message += "User ";
+                        message += username;
+                        message += " is already registered successfully.";
+                        ssize_t i = write(client_socket, message.c_str(), message.size());
+                        if(i <= 0) std::cout << "write error" << std::endl;
+                    }
+                    freeReplyObject(reply);
+                }
+            }
+    }
+    void login(json received_json){
+        if (received_json.contains("username")) {
+                std::string username = received_json["username"];
+                std::cout << username  << std::endl;
+                std::string password = received_json["password"];
+                std::cout << password << std::endl;
+                std::cout << "User " << username << " login." << std::endl;
+                redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
+                std::cout << "User " << username << " login." << std::endl;
+            
+                if (reply == nullptr) {
+                    std::cerr << "Redis command failed" << std::endl;
+                } else {
+                 if (reply->integer == 1) {
+                        redisReply* reply1 = (redisReply*)redisCommand(redis_context, "HGET user:%s password", username.c_str());
+                        std::string checkpassword = reply1->str;
+                        std::cout << "Check password " << checkpassword << std::endl;
+                        reply1 = (redisReply*)redisCommand(redis_context, "HGET user:%s status", username.c_str());
+                        if (reply1 == nullptr) {
+                            std::cerr << "Redis command failed" << std::endl;
+                        }
+                        std::string checkstatus = reply1->str;
+                        std::cout << checkstatus << std::endl;
+                        std::cout << "User " << username << " is already registered." << std::endl;
+                        std::string statussignal1 = "online";
+                        std::string statussignal0 = "offline";
+                        std::cout << "checking status"<< std::endl;
+                        if(checkpassword.compare(password)==0&&checkstatus.compare(statussignal0)==0){
+                            std::cout << "is checking" << std::endl;
+                            redisReply* reply2 =(redisReply*)redisCommand(redis_context, "HSET user:%s status %s",username.c_str(),statussignal1.c_str());
+                            if(reply2->type==REDIS_REPLY_ERROR) std::cerr << "command error" << std::endl;
+                            std::cout << "is seting" << std::endl;
+                            std::string message;
+                            message += "User";
+                            std::cout << message << std::endl;
+                            message += " is online.";
+                            std::cout << message << std::endl;
+                            ssize_t i = write(client_socket, message.c_str(), message.size());
+                            std::cout << message << std::endl;
+                            if(i <= 0) std::cout << "write error" << std::endl;
+                        }
+                        else if(checkpassword.compare(password)==0&&checkstatus.compare(statussignal0)!=0){
+                            std::cout << "is checking1" << std::endl;
+                            std::string message;
+                            message += "User";
+                            message += " is already online.";
+                            ssize_t i = write(client_socket, message.c_str(), message.size());
+                            if(i <= 0) std::cout << "write error" << std::endl;
+                            }
+                        else {
+                            std::cout << "is checking2" << std::endl;
+                            std::string message;
+                            message += "User ";
+                            message += username;
+                            message += "'s password is false.";
+                            ssize_t i = write(client_socket, message.c_str(), message.size());
+                            if(i <= 0) std::cout << "write error" << std::endl;
+                        }
+                        freeReplyObject(reply1);
+                    } else {
+                        // 未注册用户
+                        std::string message;
+                        message += "User ";
+                        message += username;
+                        message += " is never registered.";
+                        ssize_t i = write(client_socket, message.c_str(), message.size());
+                        if(i <= 0) std::cout << "write error" << std::endl;
+                    }
+                    std::cout << "free" << std::endl;
+                    freeReplyObject(reply);
+                }
+            }
+    }
+    void deregister(json received_json){
+        if (received_json.contains("username")) {
+                std::string username = received_json["username"];
+                std::string password = received_json["password"];
+                redisReply* reply = (redisReply*)redisCommand(redis_context, "HEXISTS user:%s username", username.c_str());
+            
+                if (reply == nullptr) {
+                    std::cerr << "Redis command failed" << std::endl;
+                } else {
+                 if (reply->integer == 1) {
+                        redisReply* reply1 = (redisReply*)redisCommand(redis_context, "HGET user:%s password", username.c_str());
+                        std::cout << "User " << username << " is already registered." << std::endl;
+                        if(reply1->str==password){
+                            redisReply* reply2 =(redisReply*)redisCommand(redis_context, "DEL user:%s ",username.c_str());
+                                std::string message;
+                                message += "User ";
+                                message += username;
+                                message += " is deleted.";
+                                ssize_t i = write(client_socket, message.c_str(), message.size());
+                                if(i <= 0) std::cout << "write error" << std::endl;
+                        }
+                        else{
+                            std::string message;
+                            message += "User ";
+                            message += username;
+                            message += "'s password is wrong.";
+                            ssize_t i = write(client_socket, message.c_str(), message.size());
+                            if(i <= 0) std::cout << "write error" << std::endl;}
+                    } else {
+                        // 未注册用户
+                        std::string message;
+                        message += "User ";
+                        message += username;
+                        message += " is never registered.";
+                        ssize_t i = write(client_socket, message.c_str(), message.size());
+                        if(i <= 0) std::cout << "write error" << std::endl;
+                    }
+                    freeReplyObject(reply);
+                }
+            }
+    }
+    void myfriends(json received_json){
+        std::string username = received_json["username"];
+            redisReply* reply = (redisReply*)redisCommand(redis_context, "EXISTS user:%s'sfriends", username.c_str());
+            if (reply == nullptr) {
+                std::cerr << "Redis command failed" << std::endl;
+            }
+            else if(reply->integer == 0){
+                reply = (redisReply*)redisCommand(redis_context, "ZADD user:%s'sfriends",username.c_str());
+                if (reply == nullptr) {
+                    printf("Redis command error\n");
+                    return ;
+                }
+            }
+            else {
+                reply = (redisReply*)redisCommand(redis_context, "ZRANGE firend:%s 0 -1",username.c_str());
+                if(reply == nullptr){
+                    printf("Redis command error\n");
+                    return ;
+                }
+                else if(reply->elements==0){
+                    std::string message;
+                    message += "User ";
+                    message += username;
+                    message += " has no friends.";
+                    ssize_t i = write(client_socket, message.c_str(), message.size());
+                    if(i <= 0) std::cout << "write error" << std::endl;
+                }
+                else {
+                    std::string message;
+                    int t=0;
+                    for(int i = 0; i < reply->elements;i+=2){
+                        redisReply *reply1 = (redisReply*)redisCommand(redis_context,"HGET user:%s status",reply->element[i]);
+                        if(reply1 == nullptr) continue;
+                        else if(reply1->str == "offline") {
+                            message = std::to_string(t+1)+".";
+                            message += reply->element[i]->str;
+                            message += "offline";
+                            }
+                        else if(reply1->str == "online") {
+                            message = std::to_string(t+1)+".";
+                            message += reply->element[i]->str;
+                            message += "online";
+                            }
+                        else{
+                            std::cerr << "no this friend.";
+                            continue;
+                            }
+                        message += "\n";
+                        t++;
+                    }
+                    ssize_t i = write(client_socket, message.c_str(), message.size());
+                    if(i <= 0) std::cout << "write error" << std::endl;
+                }
+            }
+    }
     void sendtoclient(int client_socket){}
     void receivefromclient(int client_socket){}
     std::string generateID() {
