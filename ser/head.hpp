@@ -29,6 +29,9 @@
 #include <utility>
 #include <boost/asio.hpp>
 #include <queue>
+#include <regex>
+#include <sys/sendfile.h>
+#include <iomanip>
 #include <utility>
 // #include <ev.h>
 using boost::asio::ip::tcp;
@@ -44,7 +47,7 @@ using boost::asio::ip::tcp;
 #define NLAHEI 6//不拉黑
 #define LAHEI 7//拉黑
 #define GROUP 8//查看群聊
-#define ADDFRIEND 9//添加好友
+#define ADDFRIEND 9//发送添加好友
 #define DELFRIEND 10//删除好友
 #define Blacklist 11//拉入黑名单
 #define HISRORY 12//查看历史记录
@@ -56,6 +59,14 @@ using boost::asio::ip::tcp;
 #define GROUPCHAT 18//进入群聊
 #define LOGOUT 19//退出
 #define DISCONNECT 20//断开连接
+#define HDADDFRIEND 21//处理加好友申请
+#define HDADDGROUP 22//处理加群
+#define NORMAL 100// 普通事件
+#define NOTICE 200// 通知事件
+#define PRIVATE 210// 私聊
+#define GROUP 220// 群聊
+#define FAIL -2// 失败  --->不能单定义一个N为-2 ！！！，否则可能会破坏引用的三方库里的其他对N的定义
+#define SUCCESS -1// 成功
 const int BUFFER_SIZE = 8192;
 const char* SERVER_IP = "127.0.0.1";
 #define MAX_EVENTS 10

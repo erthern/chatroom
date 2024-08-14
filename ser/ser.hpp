@@ -225,12 +225,12 @@ void handle_client(int client_socket, redisContext* redis_context) {
             else if(signal == LOGIN)  {
             std::cout << signal << std::endl;
             login(received_json);
-            // std::string id ;
-            // std::cout << id << std::endl;
-            // redisReply* replyid = (redisReply*)redisCommand(redis_context, "HGET user:%s id",username.c_str());
-            // id = replyid->str;
-            // id_fd.insert(std::make_pair(id,client_socket));
-            // freeReplyObject(replyid);
+            username=received_json["username"];
+            redisReply* replyid = (redisReply*)redisCommand(redis_context, "HGET user:%s id",username.c_str());
+            id=replyid->str;
+            std::cout << id << std::endl;
+            id_fd.insert(std::make_pair(id,client_socket));
+            freeReplyObject(replyid);
         }
         else if(signal == DEREGISTER){
             deregister(received_json);
@@ -606,3 +606,219 @@ void handle_client(int client_socket, redisContext* redis_context) {
     }
 };
 
+
+
+class SendMsg
+{
+public:
+    int writen(int fd, char *msg, int size);
+    void SendMsg_client(int client_socket, const std::string &str);
+    void SendMsg_int(int client_socket, int state);
+};
+
+class RecvMsg
+{
+public:
+    int readn(int fd, char *buf, int size);
+    int RecvMsg_client(int client_socket, std::string &str);
+    int RecvMsg_int(int client_socket);
+};
+int SendMsg::writen(int fd, char *msg, int size)
+{
+  char *buf = msg;
+  int count = size;
+  while (count > 0)
+  {
+    int len = send(fd, buf, count, 0);
+    if (len <= -1)
+    {
+
+      if (len == -1 && errno == EINTR)
+        continue;
+      else
+        return -1;
+    }
+    else if (len == 0)
+    {
+      continue;
+    }
+    buf += len;
+    count -= len;
+  }
+  return size;
+}
+
+// 客户端发送序列化好的数据
+void SendMsg::SendMsg_client(int client_socket, const string &str)
+{
+  if (client_socket < 0 || str.c_str() == NULL || str.size() <= 0)
+  {
+    return;
+  }
+  char *data = (char *)malloc(sizeof(char) * (str.size() + 4));
+  int biglen = htonl(str.size());
+  memcpy(data, &biglen, 4);
+  memcpy(data + 4, str.c_str(), str.size());
+  int ret;
+  ret = writen(client_socket, data, str.size() + 4);
+  if (ret == -1)
+  {
+    perror("send error");
+    close(client_socket);
+  }
+}
+
+// 服务端发送数据处理的结果（成功/失败）
+void SendMsg::SendMsg_int(int client_socket, int state)
+{
+  if (send(client_socket, &state, sizeof(int), 0) == -1)
+  {
+    std::cout << "state send failed" << std::endl;
+  }
+  else
+  {
+    std::cout << "state sent success" << std::endl;
+  }
+}
+
+/*---------------------------------------------------------------------------*/
+int RecvMsg::readn(int fd, char *buf, int size)
+{
+  char *pt = buf;
+  int count = size;
+  while (count > 0)
+  {
+    int len = recv(fd, pt, count, 0);
+    if (len == -1)
+    {
+      if (errno == EINTR || errno == EWOULDBLOCK)
+        continue;
+      else
+        return -1;
+    }
+    else if (len == 0)
+    {
+      return size - count;
+    }
+    pt += len;
+    count -= len;
+  }
+  return size - count;
+}
+
+// 客户端接收序列化的数据
+int RecvMsg::RecvMsg_client(int client_socket, string &str)
+{
+  int len = 0;
+  readn(client_socket, (char *)&len, 4);
+  len = ntohl(len);
+  char *data = (char *)malloc(len + 1);
+  int Len = readn(client_socket, data, len);
+  if (Len == 0)
+  {
+    printf("对方断开链接\n");
+    return -1;
+  }
+  else if (len != Len)
+  {
+    printf("数据接收失败\n");
+  }
+  data[len] = '\0';
+  str = data;
+
+  return Len;
+}
+
+// 客户端接收数据处理的结果（成功/失败）
+int RecvMsg::RecvMsg_int(int client_socket)
+{
+  int state;
+  ssize_t recv_bytes = recv(client_socket, &state, sizeof(int), 0);
+  if (recv_bytes == -1)
+  {
+    std::cout << "recv state failed" << std::endl;
+  }
+  else if (recv_bytes == 0) // 客户端断开连接
+  {
+    std::cout << "Connection closed by peer." << std::endl;
+    close(client_socket);
+  }
+  return state;
+}
+void addfriend_server(int fd, string buf)
+{
+    json parsed_data = json::parse(buf);
+    struct Friend friend_;
+    friend_.id = parsed_data["id"];
+    friend_.oppoid = parsed_data["oppoid"];
+    printf("--- %s 用户将向 %s 发送好友申请 ---\n", friend_.id.c_str(), friend_.oppoid.c_str());
+
+    Redis redis;
+    redis.connect();
+
+    // 构造好友列表
+    string key = friend_.id + ":friends";            // id+friends作为键，值就是id用户的好友们
+    string key_ = friend_.oppoid + ":friends_apply"; // 对方的好友申请表
+    string unkey = friend_.oppoid + ":unreadnotice"; // 未读通知
+
+    // 加好友
+    if (redis.hashexists("userinfo", friend_.oppoid) != 1) // 账号不存在
+    {
+        cout << "该id不存在，请重新输入" << endl;
+        friend_.state = USERNAMEUNEXIST;
+        friend_.type = NORMAL;
+    }
+    else if (redis.sismember(key, friend_.oppoid) == 1) // 好友列表里已有对方
+    {
+        cout << "你们已经是好友" << endl;
+        friend_.state = HADFRIEND;
+        friend_.type = NORMAL;
+    }
+    else if (redis.sismember("onlinelist", friend_.oppoid) == 1) // 在线列表里有对方
+    {
+        cout << "对方在线" << endl;
+        friend_.msg = redis.gethash("id_name", friend_.id) + "向你发送了一条好友申请";
+        friend_.state = SUCCESS;
+        friend_.type = NOTICE;
+
+        // 放到对方的好友申请表中
+        redis.saddvalue(key_, friend_.id);
+    }
+    else // 对方不在线：加入数据库，等用户上线时提醒
+    {
+        cout << "对方不在线" << endl;
+        friend_.msg = redis.gethash("id_name", friend_.id) + "向你发送了一条好友申请";
+        friend_.state = SUCCESS;
+        friend_.type = NORMAL; // 对方不在线，不能及时通知，因此设为普通事件，让用户知道已经发送了好友申请
+
+        // 加入到对方的未读通知消息队列里
+        redis.saddvalue(unkey, friend_.msg);
+
+        // 放到对方的好友申请表中
+        redis.saddvalue(key_, friend_.id);
+    }
+
+    // 发送状态和信息类型
+    nlohmann::json json_ = {
+        {"type", friend_.type},
+        {"state", friend_.state},
+        {"msg", friend_.msg},
+        {"flag", 0},
+    };
+    string json_string = json_.dump();
+    SendMsg sendmsg;
+    if (friend_.type == NORMAL)
+    {
+        sendmsg.SendMsg_client(fd, json_string);
+    }
+    else if (friend_.type == NOTICE) // 如果是通知消息，那就把这条消息发给对方（所以下面要根据对方的id获得对方的socket）
+    {
+        sendmsg.SendMsg_client(stoi(redis.gethash("usersocket", friend_.oppoid)), json_string);
+
+        // 改成正常的类型后给本用户的客户端发回去，不然客户端接不到事件的处理进度
+        json_["type"] = NORMAL;
+        json_string = json_.dump();
+        sendmsg.SendMsg_client(fd, json_string);
+    }
+    cout << "here" << endl;
+}

@@ -315,6 +315,9 @@ class user {
             ssize_t sent_bytes = send(client_socket, userrequest.dump().c_str(),userrequest.dump().length(),0);
             if(sent_bytes < 0) return;
         }
+        void lookupfriend(){
+            
+        }
         void disconnect(){
             this->signal = DISCONNECT;
             juser = toJson();
